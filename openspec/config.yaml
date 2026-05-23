@@ -1,0 +1,41 @@
+schema: spec-driven
+
+# Sources of truth — read in order. Do NOT duplicate their content here.
+context: |
+  1. **`AGENTS.md`** (project root):
+     - **Krangka Hard Rules** — refusal-grade. Re-check whenever proposing or writing
+       code that touches schema, errors, transactions, repositories, or `RunRaw`.
+     - **Krangka Conventions** — style and organization. Read when writing or editing code.
+  2. **Skill `krangka-expert`** — architecture, layering, errors, repos, pagination,
+     outbox, bootstrap, wiring, workers, subscribers, dlock, logger, testing,
+     code-style, engineering-principles. Use its SKILL.md trigger table to load
+     **only** the reference that matches the current step. Don't pre-load them all.
+
+  Precedence (highest first):
+    1. AGENTS.md Hard Rules
+    2. AGENTS.md Conventions
+    3. krangka-expert references
+    4. general guidance
+
+  Reference, don't restate: cite by section/file (e.g. "see krangka-expert/error-handling");
+  never inline their content into proposals, specs, or tasks.
+
+  If skill guidance conflicts with the user's request, ask before proceeding.
+
+# Per-artifact rules — additions on top of the sources above
+rules:
+  proposal:
+    - "Load: `krangka-expert/engineering-principles`, `krangka-expert/hexagonal-architecture`."
+    - "Under 1000 words. Required sections: **Goals**, **Non-goals**, **Acceptance criteria**. Use domain ubiquitous language."
+    - "State what is *not* changing; refuse speculative scope."
+
+  spec:
+    - "Load: `krangka-expert/error-handling` for error responses; `krangka-expert/pagination` for list endpoints."
+    - "OpenAPI 3.0, RESTful. Document request/response/error shapes; reuse `fail.Failure` codes from `shared/failure/failure.go`. Include auth if applicable."
+    - "DTOs follow `krangka-expert/code-style`."
+
+  tasks:
+    - "Load `krangka-expert/adding-features` for the canonical end-to-end order (migration → domain → port → service → repo → handler → tests → bootstrap wiring); pull layer-specific references (`repository`, `workers`, etc.) just-in-time."
+    - "TDD order per `krangka-expert/testing` (failing test → implement → green)."
+    - "One task per layer/file change. Mark inter-task dependencies."
+    - "Every task must satisfy AGENTS.md *Per-layer error handling* and the table-driven test rule."
