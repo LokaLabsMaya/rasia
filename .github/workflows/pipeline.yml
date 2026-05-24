@@ -39,6 +39,7 @@ jobs:
       image_tag: development
       environment: infra
       use_rasia: false
+      use_tailscale: true
 
   cd-production:
     needs: ci
@@ -54,3 +55,4 @@ jobs:
       image_tag: ${{ github.ref_name }}
       environment: infra
       use_rasia: false
+      use_tailscale: true
