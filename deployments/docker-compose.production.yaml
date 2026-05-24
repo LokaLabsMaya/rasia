@@ -2,14 +2,13 @@
 services:
   rasia:
     image: ${GITHUB_IMAGE:-ghcr.io/lokalabsmaya/rasia}:${IMAGE_TAG:-latest}
-    container_name: rasia
+    container_name: rasia-prod
     restart: unless-stopped
     command: ["http", "--config", "/rasia/configs/files/default.yaml"]
     volumes:
-      - /home/lokalabs/data/infra/rasia/rasia-dev:/rasia/secrets
+      - /home/lokalabs/data/infra/rasia/rasia-prod:/rasia/secrets
       - ./configs/files/default.yaml:/rasia/configs/files/default.yaml:ro
     networks:
-      - development
       - production
     labels:
       - traefik.enable=true
@@ -36,9 +35,6 @@ services:
         max-file: "3"
 
 networks:
-  development:
-    name: development
-    external: true
   production:
     name: production
     external: true

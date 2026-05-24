@@ -2,7 +2,7 @@
 services:
   rasia:
     image: ${GITHUB_IMAGE:-ghcr.io/lokalabsmaya/rasia}:${IMAGE_TAG:-development}
-    container_name: rasia
+    container_name: rasia-dev
     restart: unless-stopped
     command: ["http", "--config", "/rasia/configs/files/default.yaml"]
     volumes:
@@ -13,11 +13,11 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=development
-      - traefik.http.routers.rasia.rule=Host(`${RASIA_HOST:-dev.rasia.lokalabs.buzz}`)
-      - traefik.http.routers.rasia.entrypoints=tailscale
-      - traefik.http.routers.rasia.tls=true
-      - traefik.http.routers.rasia.tls.certresolver=letsencrypt
-      - traefik.http.services.rasia.loadbalancer.server.port=8000
+      - traefik.http.routers.rasia-dev.rule=Host(`${RASIA_HOST:-dev.rasia.lokalabs.buzz}`)
+      - traefik.http.routers.rasia-dev.entrypoints=tailscale
+      - traefik.http.routers.rasia-dev.tls=true
+      - traefik.http.routers.rasia-dev.tls.certresolver=letsencrypt
+      - traefik.http.services.rasia-dev.loadbalancer.server.port=8000
     healthcheck:
       test:
         [

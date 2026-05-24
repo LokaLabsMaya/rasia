@@ -50,7 +50,7 @@ jobs:
       SSH_USERNAME: ${{ secrets.SSH_USERNAME }}
       SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
     with:
-      service_path: rasia/rasia
+      service_path: rasia/rasia-prod
       compose_file: deployments/docker-compose.production.yaml
       image_tag: ${{ github.ref_name }}
       environment: infra
