@@ -1,5 +1,5 @@
 # Builder
-FROM golang:1.24-alpine as builder
+FROM golang:1.25-alpine AS builder
 ARG appName
 ARG appPath
 ARG TARGETOS
@@ -13,11 +13,11 @@ WORKDIR /${appName}
 COPY go.mod .
 COPY go.sum .
 
-RUN --mount=type=ssh GO111MODULE=on go mod download
+RUN GO111MODULE=on go mod download
 RUN CGO_ENABLED=1 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -v -a -installsuffix cgo -o ${appName} ${appPath}
 
 # Cert
-FROM alpine:latest as certs
+FROM alpine:latest AS certs
 RUN apk --update add ca-certificates
 
 # Distribution

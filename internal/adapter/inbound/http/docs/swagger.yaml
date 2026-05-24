@@ -1,52 +1,119 @@
-basePath: /platform/krangka
 definitions:
-  dto.ListNote:
+  domain.SecretFileExt:
+    enum:
+    - env
+    - yaml
+    - json
+    - txt
+    type: string
+    x-enum-varnames:
+    - SecretFileExtEnv
+    - SecretFileExtYAML
+    - SecretFileExtJSON
+    - SecretFileExtTXT
+  dto.ReqAddSecret:
+    properties:
+      key_name:
+        maxLength: 255
+        type: string
+      value:
+        type: string
+    required:
+    - key_name
+    - value
+    type: object
+  dto.ReqCreateNamespace:
+    properties:
+      name:
+        maxLength: 255
+        type: string
+      parent_id:
+        type: string
+    required:
+    - name
+    type: object
+  dto.ReqCreateSecretFile:
+    properties:
+      ext:
+        allOf:
+        - $ref: '#/definitions/domain.SecretFileExt'
+        enum:
+        - env
+        - yaml
+        - json
+        - txt
+      name:
+        maxLength: 255
+        type: string
+    required:
+    - ext
+    - name
+    type: object
+  dto.ReqSaveFileContent:
     properties:
       content:
         type: string
+    required:
+    - content
+    type: object
+  dto.ReqUpdateSecret:
+    properties:
+      value:
+        type: string
+    required:
+    - value
+    type: object
+  dto.ResFileContent:
+    properties:
+      content:
+        type: string
+    type: object
+  dto.ResNamespace:
+    properties:
+      children:
+        items:
+          $ref: '#/definitions/dto.ResNamespace'
+        type: array
       created_at:
         type: string
       id:
         type: string
-      title:
+      name:
+        type: string
+      parent_id:
         type: string
       updated_at:
         type: string
     type: object
-  dto.ReqCreateNote:
+  dto.ResRevealSecret:
     properties:
-      content:
-        type: string
-      title:
-        type: string
-    required:
-    - content
-    - title
-    type: object
-  dto.ReqUpdateNote:
-    properties:
-      content:
-        type: string
-      title:
-        type: string
-    required:
-    - content
-    - title
-    type: object
-  dto.ResCreateNote:
-    properties:
-      id:
+      value:
         type: string
     type: object
-  dto.ResGetNoteByID:
+  dto.ResSecret:
     properties:
-      content:
-        type: string
       created_at:
         type: string
+      file_id:
+        type: string
       id:
         type: string
-      title:
+      key_name:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  dto.ResSecretFile:
+    properties:
+      created_at:
+        type: string
+      ext:
+        $ref: '#/definitions/domain.SecretFileExt'
+      id:
+        type: string
+      name:
+        type: string
+      namespace_id:
         type: string
       updated_at:
         type: string
@@ -89,19 +156,6 @@ definitions:
       request_id:
         type: string
     type: object
-  response.ResponseFailed:
-    properties:
-      data: {}
-      error_code:
-        type: string
-      message:
-        type: string
-      metadata:
-        $ref: '#/definitions/response.Metadata'
-      success:
-        example: false
-        type: boolean
-    type: object
   response.ResponseSuccess:
     properties:
       data: {}
@@ -116,136 +170,135 @@ definitions:
     type: object
 info:
   contact: {}
-  description: This is a documentation for Krangka Service RESTful APIs. <br>
-  title: Krangka Service API
+  description: This is a documentation for rasia Service RESTful APIs. <br>
+  title: rasia Service API
 paths:
-  /notes:
+  /api/export:
     get:
-      consumes:
-      - application/json
-      description: Retrieves a list of notes with optional filtering and pagination
+      description: Resolves a namespace path and returns all decrypted files
       parameters:
-      - in: query
-        name: count_total_data
-        type: boolean
-      - in: query
-        name: cursor
-        type: string
-      - in: query
-        name: page
-        type: integer
-      - enum:
-        - offset
-        - cursor
+      - description: Namespace path (e.g. production/application)
         in: query
-        name: pagination_type
+        name: path
         required: true
-        type: string
-      - in: query
-        name: per_page
-        type: integer
-      - in: query
-        maxLength: 100
-        name: search
         type: string
       produces:
       - application/json
       responses:
         "200":
-          description: Notes retrieved successfully
+          description: OK
+          schema:
+            $ref: '#/definitions/response.ResponseSuccess'
+      summary: Export Secrets
+      tags:
+      - Export
+  /api/files/{file_id}/content:
+    get:
+      description: Returns decrypted file content
+      parameters:
+      - description: File ID
+        in: path
+        name: file_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.ResponseSuccess'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.ResFileContent'
+              type: object
+      summary: Get File Content
+      tags:
+      - FileContent
+    put:
+      consumes:
+      - application/json
+      description: Encrypts and upserts file content
+      parameters:
+      - description: File ID
+        in: path
+        name: file_id
+        required: true
+        type: string
+      - description: Content
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ReqSaveFileContent'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.ResponseSuccess'
+      summary: Save File Content
+      tags:
+      - FileContent
+  /api/files/{file_id}/secrets:
+    get:
+      description: Returns all secrets in a file (values masked)
+      parameters:
+      - description: File ID
+        in: path
+        name: file_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
           schema:
             allOf:
             - $ref: '#/definitions/response.ResponseSuccess'
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/dto.ListNote'
+                    $ref: '#/definitions/dto.ResSecret'
                   type: array
               type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/response.ResponseFailed'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/response.ResponseFailed'
-      summary: List Notes
+      summary: List Secrets
       tags:
-      - Notes
+      - Secrets
     post:
       consumes:
       - application/json
-      description: Creates a new note
+      description: Encrypts and stores a new key-value pair
       parameters:
-      - description: Note data
+      - description: File ID
+        in: path
+        name: file_id
+        required: true
+        type: string
+      - description: Secret data
         in: body
-        name: note
+        name: secret
         required: true
         schema:
-          $ref: '#/definitions/dto.ReqCreateNote'
+          $ref: '#/definitions/dto.ReqAddSecret'
       produces:
       - application/json
       responses:
         "201":
-          description: Note created successfully
-          schema:
-            allOf:
-            - $ref: '#/definitions/response.ResponseSuccess'
-            - properties:
-                data:
-                  $ref: '#/definitions/dto.ResCreateNote'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/response.ResponseFailed'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/response.ResponseFailed'
-      summary: Create Note
-      tags:
-      - Notes
-  /notes/{id}:
-    delete:
-      consumes:
-      - application/json
-      description: Deletes a note by ID
-      parameters:
-      - description: Note ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Note deleted successfully
+          description: Created
           schema:
             $ref: '#/definitions/response.ResponseSuccess'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/response.ResponseFailed'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/response.ResponseFailed'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/response.ResponseFailed'
-      summary: Delete Note
+      summary: Add Secret
       tags:
-      - Notes
-    get:
-      consumes:
-      - application/json
-      description: Retrieves a note by its id
+      - Secrets
+  /api/files/{id}:
+    delete:
+      description: Soft-deletes a file and its secrets/content
       parameters:
-      - description: Note ID
+      - description: File ID
         in: path
         name: id
         required: true
@@ -254,67 +307,194 @@ paths:
       - application/json
       responses:
         "200":
-          description: Note retrieved successfully
+          description: OK
+          schema:
+            $ref: '#/definitions/response.ResponseSuccess'
+      summary: Delete Secret File
+      tags:
+      - SecretFiles
+  /api/namespaces:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new namespace node
+      parameters:
+      - description: Namespace data
+        in: body
+        name: namespace
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ReqCreateNamespace'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/response.ResponseSuccess'
+      summary: Create Namespace
+      tags:
+      - Namespaces
+  /api/namespaces/{id}:
+    delete:
+      description: Soft-deletes a namespace and its descendants
+      parameters:
+      - description: Namespace ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.ResponseSuccess'
+      summary: Delete Namespace
+      tags:
+      - Namespaces
+  /api/namespaces/{namespace_id}/files:
+    get:
+      description: Returns all files in a namespace
+      parameters:
+      - description: Namespace ID
+        in: path
+        name: namespace_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
           schema:
             allOf:
             - $ref: '#/definitions/response.ResponseSuccess'
             - properties:
                 data:
-                  $ref: '#/definitions/dto.ResGetNoteByID'
+                  items:
+                    $ref: '#/definitions/dto.ResSecretFile'
+                  type: array
               type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/response.ResponseFailed'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/response.ResponseFailed'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/response.ResponseFailed'
-      summary: Get Note by ID
+      summary: List Secret Files
       tags:
-      - Notes
+      - SecretFiles
+    post:
+      consumes:
+      - application/json
+      description: Creates a new file in a namespace
+      parameters:
+      - description: Namespace ID
+        in: path
+        name: namespace_id
+        required: true
+        type: string
+      - description: File data
+        in: body
+        name: file
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ReqCreateSecretFile'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/response.ResponseSuccess'
+      summary: Create Secret File
+      tags:
+      - SecretFiles
+  /api/namespaces/tree:
+    get:
+      description: Returns the full namespace tree
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.ResponseSuccess'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.ResNamespace'
+                  type: array
+              type: object
+      summary: Get Namespace Tree
+      tags:
+      - Namespaces
+  /api/secrets/{id}:
+    delete:
+      description: Soft-deletes a secret
+      parameters:
+      - description: Secret ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.ResponseSuccess'
+      summary: Delete Secret
+      tags:
+      - Secrets
     put:
       consumes:
       - application/json
-      description: Updates an existing note by ID
+      description: Encrypts and updates an existing key-value pair
       parameters:
-      - description: Note ID
+      - description: Secret ID
         in: path
         name: id
         required: true
         type: string
-      - description: Note data
+      - description: Secret data
         in: body
-        name: note
+        name: secret
         required: true
         schema:
-          $ref: '#/definitions/dto.ReqUpdateNote'
+          $ref: '#/definitions/dto.ReqUpdateSecret'
       produces:
       - application/json
       responses:
         "200":
-          description: Note updated successfully
+          description: OK
           schema:
             $ref: '#/definitions/response.ResponseSuccess'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/response.ResponseFailed'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/response.ResponseFailed'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/response.ResponseFailed'
-      summary: Update Note
+      summary: Update Secret
       tags:
-      - Notes
+      - Secrets
+  /api/secrets/{id}/reveal:
+    get:
+      description: Decrypts and returns the plaintext value
+      parameters:
+      - description: Secret ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.ResponseSuccess'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.ResRevealSecret'
+              type: object
+      summary: Reveal Secret
+      tags:
+      - Secrets
 securityDefinitions:
   BasicAuth:
     type: basic

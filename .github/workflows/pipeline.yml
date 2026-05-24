@@ -17,9 +17,13 @@ jobs:
     secrets: inherit
     with:
       go_version: "1.25.0"
-      dockerfile: build/Dockerfile
+      dockerfile: deployments/build/Dockerfile
       context: .
       release_branch: development
+      cgo_enabled: true
+      build_args: |
+        appName=rasia
+        appPath=.
 
   cd-development:
     needs: ci
@@ -30,12 +34,12 @@ jobs:
       SSH_USERNAME: ${{ secrets.SSH_USERNAME }}
       SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
     with:
-      service_path: lokalabs/infra/rasia-dev
-      compose_file: deployment/docker-compose.development.yaml
+      service_path: rasia/rasia-dev
+      compose_file: deployments/docker-compose.development.yaml
       image_tag: development
-      lokalabs_env: development
-      environment: development
+      environment: infra
       use_rasia: false
+      use_tailscale: true
 
   cd-production:
     needs: ci
@@ -46,9 +50,9 @@ jobs:
       SSH_USERNAME: ${{ secrets.SSH_USERNAME }}
       SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
     with:
-      service_path: lokalabs/infra/rasia
-      compose_file: deployment/docker-compose.production.yaml
+      service_path: rasia/rasia
+      compose_file: deployments/docker-compose.production.yaml
       image_tag: ${{ github.ref_name }}
-      lokalabs_env: production
-      environment: production
+      environment: infra
       use_rasia: false
+      use_tailscale: true

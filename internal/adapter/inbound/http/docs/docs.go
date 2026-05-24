@@ -15,9 +15,77 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/notes": {
+        "/api/export": {
             "get": {
-                "description": "Retrieves a list of notes with optional filtering and pagination",
+                "description": "Resolves a namespace path and returns all decrypted files",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Export"
+                ],
+                "summary": "Export Secrets",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Namespace path (e.g. production/application)",
+                        "name": "path",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.ResponseSuccess"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/files/{file_id}/content": {
+            "get": {
+                "description": "Returns decrypted file content",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "FileContent"
+                ],
+                "summary": "Get File Content",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "File ID",
+                        "name": "file_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.ResponseSuccess"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.ResFileContent"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Encrypts and upserts file content",
                 "consumes": [
                     "application/json"
                 ],
@@ -25,50 +93,59 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Notes"
+                    "FileContent"
                 ],
-                "summary": "List Notes",
+                "summary": "Save File Content",
                 "parameters": [
                     {
-                        "type": "boolean",
-                        "name": "count_total_data",
-                        "in": "query"
-                    },
-                    {
                         "type": "string",
-                        "name": "cursor",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "enum": [
-                            "offset",
-                            "cursor"
-                        ],
-                        "type": "string",
-                        "name": "pagination_type",
-                        "in": "query",
+                        "description": "File ID",
+                        "name": "file_id",
+                        "in": "path",
                         "required": true
                     },
                     {
-                        "type": "integer",
-                        "name": "per_page",
-                        "in": "query"
-                    },
-                    {
-                        "maxLength": 100,
-                        "type": "string",
-                        "name": "search",
-                        "in": "query"
+                        "description": "Content",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.ReqSaveFileContent"
+                        }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Notes retrieved successfully",
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.ResponseSuccess"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/files/{file_id}/secrets": {
+            "get": {
+                "description": "Returns all secrets in a file (values masked)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Secrets"
+                ],
+                "summary": "List Secrets",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "File ID",
+                        "name": "file_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
                         "schema": {
                             "allOf": [
                                 {
@@ -80,30 +157,18 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/dto.ListNote"
+                                                "$ref": "#/definitions/dto.ResSecret"
                                             }
                                         }
                                     }
                                 }
                             ]
                         }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/response.ResponseFailed"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/response.ResponseFailed"
-                        }
                     }
                 }
             },
             "post": {
-                "description": "Creates a new note",
+                "description": "Encrypts and stores a new key-value pair",
                 "consumes": [
                     "application/json"
                 ],
@@ -111,71 +176,51 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Notes"
+                    "Secrets"
                 ],
-                "summary": "Create Note",
+                "summary": "Add Secret",
                 "parameters": [
                     {
-                        "description": "Note data",
-                        "name": "note",
+                        "type": "string",
+                        "description": "File ID",
+                        "name": "file_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Secret data",
+                        "name": "secret",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dto.ReqCreateNote"
+                            "$ref": "#/definitions/dto.ReqAddSecret"
                         }
                     }
                 ],
                 "responses": {
                     "201": {
-                        "description": "Note created successfully",
+                        "description": "Created",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/response.ResponseSuccess"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/dto.ResCreateNote"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/response.ResponseFailed"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/response.ResponseFailed"
+                            "$ref": "#/definitions/response.ResponseSuccess"
                         }
                     }
                 }
             }
         },
-        "/notes/{id}": {
-            "get": {
-                "description": "Retrieves a note by its id",
-                "consumes": [
-                    "application/json"
-                ],
+        "/api/files/{id}": {
+            "delete": {
+                "description": "Soft-deletes a file and its secrets/content",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "Notes"
+                    "SecretFiles"
                 ],
-                "summary": "Get Note by ID",
+                "summary": "Delete Secret File",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Note ID",
+                        "description": "File ID",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -183,7 +228,61 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Note retrieved successfully",
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.ResponseSuccess"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/namespaces": {
+            "post": {
+                "description": "Creates a new namespace node",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Namespaces"
+                ],
+                "summary": "Create Namespace",
+                "parameters": [
+                    {
+                        "description": "Namespace data",
+                        "name": "namespace",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.ReqCreateNamespace"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/response.ResponseSuccess"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/namespaces/tree": {
+            "get": {
+                "description": "Returns the full namespace tree",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Namespaces"
+                ],
+                "summary": "Get Namespace Tree",
+                "responses": {
+                    "200": {
+                        "description": "OK",
                         "schema": {
                             "allOf": [
                                 {
@@ -193,35 +292,93 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/dto.ResGetNoteByID"
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/dto.ResNamespace"
+                                            }
                                         }
                                     }
                                 }
                             ]
                         }
-                    },
-                    "400": {
-                        "description": "Bad Request",
+                    }
+                }
+            }
+        },
+        "/api/namespaces/{id}": {
+            "delete": {
+                "description": "Soft-deletes a namespace and its descendants",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Namespaces"
+                ],
+                "summary": "Delete Namespace",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Namespace ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/response.ResponseFailed"
+                            "$ref": "#/definitions/response.ResponseSuccess"
                         }
-                    },
-                    "404": {
-                        "description": "Not Found",
+                    }
+                }
+            }
+        },
+        "/api/namespaces/{namespace_id}/files": {
+            "get": {
+                "description": "Returns all files in a namespace",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SecretFiles"
+                ],
+                "summary": "List Secret Files",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Namespace ID",
+                        "name": "namespace_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/response.ResponseFailed"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/response.ResponseFailed"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.ResponseSuccess"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/dto.ResSecretFile"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
             },
-            "put": {
-                "description": "Updates an existing note by ID",
+            "post": {
+                "description": "Creates a new file in a namespace",
                 "consumes": [
                     "application/json"
                 ],
@@ -229,70 +386,90 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Notes"
+                    "SecretFiles"
                 ],
-                "summary": "Update Note",
+                "summary": "Create Secret File",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Note ID",
+                        "description": "Namespace ID",
+                        "name": "namespace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "File data",
+                        "name": "file",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.ReqCreateSecretFile"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/response.ResponseSuccess"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/secrets/{id}": {
+            "put": {
+                "description": "Encrypts and updates an existing key-value pair",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Secrets"
+                ],
+                "summary": "Update Secret",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Secret ID",
                         "name": "id",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Note data",
-                        "name": "note",
+                        "description": "Secret data",
+                        "name": "secret",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dto.ReqUpdateNote"
+                            "$ref": "#/definitions/dto.ReqUpdateSecret"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Note updated successfully",
+                        "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/response.ResponseSuccess"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/response.ResponseFailed"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/response.ResponseFailed"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/response.ResponseFailed"
                         }
                     }
                 }
             },
             "delete": {
-                "description": "Deletes a note by ID",
-                "consumes": [
-                    "application/json"
-                ],
+                "description": "Soft-deletes a secret",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "Notes"
+                    "Secrets"
                 ],
-                "summary": "Delete Note",
+                "summary": "Delete Secret",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Note ID",
+                        "description": "Secret ID",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -300,27 +477,50 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Note deleted successfully",
+                        "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/response.ResponseSuccess"
                         }
-                    },
-                    "400": {
-                        "description": "Bad Request",
+                    }
+                }
+            }
+        },
+        "/api/secrets/{id}/reveal": {
+            "get": {
+                "description": "Decrypts and returns the plaintext value",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Secrets"
+                ],
+                "summary": "Reveal Secret",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Secret ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/response.ResponseFailed"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/response.ResponseFailed"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/response.ResponseFailed"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.ResponseSuccess"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.ResRevealSecret"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -328,11 +528,116 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "dto.ListNote": {
+        "domain.SecretFileExt": {
+            "type": "string",
+            "enum": [
+                "env",
+                "yaml",
+                "json",
+                "txt"
+            ],
+            "x-enum-varnames": [
+                "SecretFileExtEnv",
+                "SecretFileExtYAML",
+                "SecretFileExtJSON",
+                "SecretFileExtTXT"
+            ]
+        },
+        "dto.ReqAddSecret": {
+            "type": "object",
+            "required": [
+                "key_name",
+                "value"
+            ],
+            "properties": {
+                "key_name": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.ReqCreateNamespace": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "parent_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.ReqCreateSecretFile": {
+            "type": "object",
+            "required": [
+                "ext",
+                "name"
+            ],
+            "properties": {
+                "ext": {
+                    "enum": [
+                        "env",
+                        "yaml",
+                        "json",
+                        "txt"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.SecretFileExt"
+                        }
+                    ]
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 255
+                }
+            }
+        },
+        "dto.ReqSaveFileContent": {
+            "type": "object",
+            "required": [
+                "content"
+            ],
+            "properties": {
+                "content": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.ReqUpdateSecret": {
+            "type": "object",
+            "required": [
+                "value"
+            ],
+            "properties": {
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.ResFileContent": {
             "type": "object",
             "properties": {
                 "content": {
                     "type": "string"
+                }
+            }
+        },
+        "dto.ResNamespace": {
+            "type": "object",
+            "properties": {
+                "children": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.ResNamespace"
+                    }
                 },
                 "created_at": {
                     "type": "string"
@@ -340,7 +645,10 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
-                "title": {
+                "name": {
+                    "type": "string"
+                },
+                "parent_id": {
                     "type": "string"
                 },
                 "updated_at": {
@@ -348,57 +656,50 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.ReqCreateNote": {
+        "dto.ResRevealSecret": {
             "type": "object",
-            "required": [
-                "content",
-                "title"
-            ],
             "properties": {
-                "content": {
-                    "type": "string"
-                },
-                "title": {
+                "value": {
                     "type": "string"
                 }
             }
         },
-        "dto.ReqUpdateNote": {
-            "type": "object",
-            "required": [
-                "content",
-                "title"
-            ],
-            "properties": {
-                "content": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.ResCreateNote": {
+        "dto.ResSecret": {
             "type": "object",
             "properties": {
-                "id": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.ResGetNoteByID": {
-            "type": "object",
-            "properties": {
-                "content": {
-                    "type": "string"
-                },
                 "created_at": {
                     "type": "string"
                 },
+                "file_id": {
+                    "type": "string"
+                },
                 "id": {
                     "type": "string"
                 },
-                "title": {
+                "key_name": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.ResSecretFile": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "ext": {
+                    "$ref": "#/definitions/domain.SecretFileExt"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "namespace_id": {
                     "type": "string"
                 },
                 "updated_at": {
@@ -465,25 +766,6 @@ const docTemplate = `{
                 }
             }
         },
-        "response.ResponseFailed": {
-            "type": "object",
-            "properties": {
-                "data": {},
-                "error_code": {
-                    "type": "string"
-                },
-                "message": {
-                    "type": "string"
-                },
-                "metadata": {
-                    "$ref": "#/definitions/response.Metadata"
-                },
-                "success": {
-                    "type": "boolean",
-                    "example": false
-                }
-            }
-        },
         "response.ResponseSuccess": {
             "type": "object",
             "properties": {
@@ -520,8 +802,8 @@ var SwaggerInfo = &swag.Spec{
 	Host:             "",
 	BasePath:         "",
 	Schemes:          []string{},
-	Title:            "Krangka Service API",
-	Description:      "This is a documentation for Krangka Service RESTful APIs. <br>",
+	Title:            "rasia Service API",
+	Description:      "This is a documentation for rasia Service RESTful APIs. <br>",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",
