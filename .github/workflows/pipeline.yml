@@ -35,7 +35,7 @@ jobs:
       SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
     with:
       service_path: lokalabs/infra/rasia-dev
-      compose_file: deployment/docker-compose.development.yaml
+      compose_file: deployments/docker-compose.development.yaml
       image_tag: development
       lokalabs_env: development
       environment: development
@@ -51,7 +51,7 @@ jobs:
       SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
     with:
       service_path: lokalabs/infra/rasia
-      compose_file: deployment/docker-compose.production.yaml
+      compose_file: deployments/docker-compose.production.yaml
       image_tag: ${{ github.ref_name }}
       lokalabs_env: production
       environment: production
