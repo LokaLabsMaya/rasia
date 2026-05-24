@@ -37,7 +37,6 @@ jobs:
       service_path: lokalabs/infra/rasia-dev
       compose_file: deployments/docker-compose.development.yaml
       image_tag: development
-      lokalabs_env: development
       environment: development
       use_rasia: false
 
@@ -53,6 +52,5 @@ jobs:
       service_path: lokalabs/infra/rasia
       compose_file: deployments/docker-compose.production.yaml
       image_tag: ${{ github.ref_name }}
-      lokalabs_env: production
       environment: production
       use_rasia: false
