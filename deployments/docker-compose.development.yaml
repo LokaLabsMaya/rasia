@@ -7,7 +7,7 @@ services:
     environment:
       - CONFIG_FILE=${CONFIG_FILE:-configs/files/default.yaml}
     volumes:
-      - /home/lokalabs/data/infra/rasia-dev:/rasia/secrets
+      - /home/lokalabs/data/infra/rasia/rasia-dev:/rasia/secrets
     networks:
       - development
     labels:
