@@ -4,10 +4,10 @@ services:
     image: ${GITHUB_IMAGE:-ghcr.io/lokalabsmaya/rasia}:${IMAGE_TAG:-development}
     container_name: rasia
     restart: unless-stopped
-    environment:
-      - CONFIG_FILE=${CONFIG_FILE:-configs/files/default.yaml}
+    command: ["http", "--config", "/rasia/configs/files/default.yaml"]
     volumes:
       - /home/lokalabs/data/infra/rasia/rasia-dev:/rasia/secrets
+      - ./configs/files/default.yaml:/rasia/configs/files/default.yaml:ro
     networks:
       - development
     labels:
