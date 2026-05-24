@@ -21,6 +21,9 @@ jobs:
       context: .
       release_branch: development
       cgo_enabled: true
+      build_args: |
+        appName=rasia
+        appPath=.
 
   cd-development:
     needs: ci
