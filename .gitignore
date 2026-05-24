@@ -26,3 +26,7 @@ CHANGES.md
 project
 # Added by code-review-graph
 .code-review-graph/
+
+secrets.db
+secrets.db-shm
+secrets.db-wal

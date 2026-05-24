@@ -10,13 +10,21 @@ import (
 
 // Config represents configuration variables
 type Config struct {
-	App      App      `yaml:"app"`
-	Log      Log      `yaml:"log"`
-	Http     Http     `yaml:"http"`
-	Database Database `yaml:"database"`
-	Cache    Cache    `yaml:"cache"`
-	Otel     Otel     `yaml:"otel"`
-	Event    Event    `yaml:"event"`
+	App     App     `yaml:"app"`
+	Log     Log     `yaml:"log"`
+	Http    Http    `yaml:"http"`
+	Crypto  Crypto  `yaml:"crypto"`
+	Secrets Secrets `yaml:"secrets"`
+}
+
+// Crypto holds the encryption key for secrets.
+type Crypto struct {
+	Key string `yaml:"key"`
+}
+
+// Secrets holds the SQLite configuration for the secrets manager.
+type Secrets struct {
+	DBPath string `yaml:"db_path"`
 }
 
 type App struct {
@@ -39,117 +47,6 @@ type Http struct {
 	EnablePrintRoutes     bool          `yaml:"enable_print_routes"`
 	DisableStartupMessage bool          `yaml:"disable_startup_message"`
 	AllowOrigins          []string      `yaml:"allow_origins"`
-}
-
-type Database struct {
-	MariaDBMain struct {
-		Host            string        `yaml:"host"`
-		Port            string        `yaml:"port"`
-		Username        string        `yaml:"username"`
-		Password        string        `yaml:"password"`
-		DBName          string        `yaml:"name"`
-		MaxOpenConns    int           `yaml:"max_open_conns"`
-		MaxIdleConns    int           `yaml:"max_idle_conns"`
-		ConnMaxLifetime time.Duration `yaml:"conn_max_lifetime"`
-		ConnMaxIdleTime time.Duration `yaml:"conn_max_idle_time"`
-	} `yaml:"mariadb_main"`
-	MariaDBWorker struct {
-		Host            string        `yaml:"host"`
-		Port            string        `yaml:"port"`
-		Username        string        `yaml:"username"`
-		Password        string        `yaml:"password"`
-		DBName          string        `yaml:"name"`
-		MaxOpenConns    int           `yaml:"max_open_conns"`
-		MaxIdleConns    int           `yaml:"max_idle_conns"`
-		ConnMaxLifetime time.Duration `yaml:"conn_max_lifetime"`
-		ConnMaxIdleTime time.Duration `yaml:"conn_max_idle_time"`
-	} `yaml:"mariadb_worker"`
-}
-
-type Cache struct {
-	Redis struct {
-		Sentinel     bool     `yaml:"sentinel"`
-		MasterName   string   `yaml:"master_name"`
-		Username     string   `yaml:"username"`
-		Hosts        []string `yaml:"hosts"`
-		Password     string   `yaml:"password"`
-		DB           int      `yaml:"db"`
-		PoolSize     int      `yaml:"pool_size"`
-		MinIdleConns int      `yaml:"min_idle_conns"`
-	} `yaml:"redis"`
-}
-
-type Otel struct {
-	URL        string  `yaml:"url"`
-	Exporter   string  `yaml:"exporter"`
-	SampleRate float64 `yaml:"sample_rate"`
-}
-
-type Event struct {
-	Outbox struct {
-		RelayPattern     string `yaml:"relay_pattern"`
-		MaxRetryAttempts int    `yaml:"max_retry_attempts"`
-		FetchPerPage     int    `yaml:"fetch_per_page"`
-	} `yaml:"outbox"`
-	Idempotency struct {
-		TTL time.Duration `yaml:"ttl"`
-	} `yaml:"idempotency"`
-	Redisstream struct {
-		Publisher   RedisstreamPublisher   `yaml:"publisher"`
-		Subscribers RedisstreamSubscribers `yaml:"subscribers"`
-	} `yaml:"redisstream"`
-	Kafka struct {
-		Publisher   KafkaPublisher   `yaml:"publisher"`
-		Subscribers KafkaSubscribers `yaml:"subscribers"`
-	} `yaml:"kafka"`
-}
-
-type RedisstreamPublisher struct {
-	Enabled       bool  `yaml:"enabled"`
-	DefaultMaxlen int64 `yaml:"default_maxlen"`
-}
-
-type RedisstreamSubscriber struct {
-	ID            string `yaml:"id"`
-	ConsumerGroup string `yaml:"consumer_group"`
-}
-
-type RedisstreamSubscribers []RedisstreamSubscriber
-
-// GetByID gets a subscriber by its ID
-func (r RedisstreamSubscribers) GetByID(id string) *RedisstreamSubscriber {
-	for _, subscriber := range r {
-		if subscriber.ID == id {
-			return &subscriber
-		}
-	}
-	return nil
-}
-
-type KafkaPublisher struct {
-	Enabled      bool     `yaml:"enabled"`
-	Brokers      []string `yaml:"brokers"`
-	DebugEnabled bool     `yaml:"debug_enabled"`
-	TraceEnabled bool     `yaml:"trace_enabled"`
-}
-type KafkaSubscriber struct {
-	ID            string   `yaml:"id"`
-	Brokers       []string `yaml:"brokers"`
-	ConsumerGroup string   `yaml:"consumer_group"`
-	DebugEnabled  bool     `yaml:"debug_enabled"`
-	TraceEnabled  bool     `yaml:"trace_enabled"`
-}
-
-type KafkaSubscribers []KafkaSubscriber
-
-// GetByID gets a subscriber by its ID
-func (k KafkaSubscribers) GetByID(id string) *KafkaSubscriber {
-	for _, subscriber := range k {
-		if subscriber.ID == id {
-			return &subscriber
-		}
-	}
-	return nil
 }
 
 // GetEnv returns the environment variable ENV

@@ -105,6 +105,13 @@ func (h *HTTP) RegisterMetricsRoutes() {
 	})
 }
 
+// RegisterUIRoutes registers the secrets manager UI route.
+func (h *HTTP) RegisterUIRoutes() {
+	h.router.Get("/", func(c fiber.Ctx) error {
+		return c.SendFile("web/index.html")
+	})
+}
+
 func (h *HTTP) RegisterNotFoundRoutes() {
 	h.router.Use(func(c fiber.Ctx) error {
 		logRequest(c, h.log, failure.ErrPathNotFound.HTTPStatus, failure.ErrPathNotFound.Message, "")

@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vault — Secrets Manager</title>
+<link rel="icon" href="data:,">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg-base:     #0b0d0e;
+  --bg-surface:  #111416;
+  --bg-elevated: #181b1e;
+  --bg-hover:    #1d2226;
+  --bg-active:   #152921;
+  --border:      rgba(255,255,255,0.07);
+  --border-hi:   rgba(255,255,255,0.13);
+  --accent:      #00d488;
+  --accent-glow: rgba(0,212,136,0.22);
+  --accent-dim:  rgba(0,212,136,0.10);
+  --text:        #dce4ec;
+  --text-2:      #7e8d9c;
+  --text-3:      #424d58;
+  --fui:         -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --fmono:       'SF Mono','Cascadia Code','Consolas','Courier New',monospace;
+  --r:           6px;
+  --r-sm:        4px;
+  --sw:          258px;
+  --ease:        150ms ease;
+}
+
+html,body { height:100%; background:var(--bg-base); color:var(--text); font-family:var(--fui); font-size:13px; line-height:1.5; -webkit-font-smoothing:antialiased; }
+::-webkit-scrollbar { width:5px; height:5px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.09); border-radius:3px; }
+
+.app { display:flex; height:100vh; overflow:hidden; }
+
+/* ── SIDEBAR ── */
+.sidebar { width:var(--sw); min-width:var(--sw); background:var(--bg-surface); border-right:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; }
+
+.sidebar-header { padding:16px 14px 14px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; flex-shrink:0; }
+.logo-mark { width:30px; height:30px; background:var(--accent); border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 0 14px var(--accent-glow); }
+.logo-mark svg { width:15px; height:15px; color:#0b0d0e; }
+.logo-name { font-size:14px; font-weight:700; letter-spacing:-.02em; }
+.logo-sub  { font-size:10px; color:var(--text-3); letter-spacing:.1em; text-transform:uppercase; font-weight:500; }
+
+.search-wrap { padding:9px 10px; border-bottom:1px solid var(--border); flex-shrink:0; }
+.search-wrap .inner { position:relative; display:flex; align-items:center; }
+.search-wrap .icon { position:absolute; left:9px; color:var(--text-3); display:flex; pointer-events:none; }
+.search-input { width:100%; background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--r-sm); padding:6px 8px 6px 29px; font-family:var(--fui); font-size:12px; color:var(--text); outline:none; transition:border-color var(--ease); }
+.search-input::placeholder { color:var(--text-3); }
+.search-input:focus { border-color:var(--accent); }
+
+.tree-scroll { flex:1; overflow-y:auto; padding:6px 0 8px; }
+.tree-label { font-size:10px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--text-3); padding:8px 14px 4px; }
+
+.tree-row {
+  display:flex; align-items:center; gap:5px;
+  padding:4px 8px; cursor:pointer;
+  border-radius:var(--r-sm); margin:1px 6px;
+  transition:background var(--ease), color var(--ease);
+  color:var(--text-2); min-height:27px; position:relative;
+}
+.tree-row:hover { background:var(--bg-hover); color:var(--text); }
+.tree-row.active { background:var(--bg-active); color:var(--accent); }
+
+.chev { width:13px; height:13px; display:flex; align-items:center; justify-content:center; color:var(--text-3); transition:transform var(--ease); flex-shrink:0; }
+.chev.open { transform:rotate(90deg); }
+.chev.hidden { opacity:0; pointer-events:none; }
+
+.tree-icon { width:14px; height:14px; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:color var(--ease); }
+.ic-folder { color:#f5a623; }
+.ic-env    { color:#6ee7b7; }
+.ic-yaml   { color:#c4b5fd; }
+.ic-json   { color:#7dd3fc; }
+.ic-txt    { color:#94a3b8; }
+.tree-row.active .tree-icon { color:var(--accent); }
+
+.tree-name { font-size:12.5px; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+.ext-tag { font-family:var(--fmono); font-size:9px; font-weight:600; letter-spacing:.05em; padding:1px 5px; border-radius:3px; flex-shrink:0; text-transform:uppercase; }
+.xt-env  { background:rgba(110,231,183,.08); color:#6ee7b7; border:1px solid rgba(110,231,183,.15); }
+.xt-yaml { background:rgba(196,181,253,.08); color:#c4b5fd; border:1px solid rgba(196,181,253,.15); }
+.xt-json { background:rgba(125,211,252,.08); color:#7dd3fc; border:1px solid rgba(125,211,252,.15); }
+.xt-txt  { background:rgba(148,163,184,.08); color:#94a3b8; border:1px solid rgba(148,163,184,.15); }
+
+/* add button on folder rows */
+.tree-add {
+  width:18px; height:18px; border-radius:3px; border:none; background:transparent;
+  color:var(--text-3); cursor:pointer; display:none; align-items:center; justify-content:center;
+  flex-shrink:0; transition:all var(--ease); font-size:14px; line-height:1;
+}
+.tree-row:hover .tree-add { display:flex; }
+.tree-add:hover { background:var(--accent-dim); color:var(--accent); }
+
+.tree-del {
+  width:18px; height:18px; border-radius:3px; border:none; background:transparent;
+  color:var(--text-3); cursor:pointer; display:none; align-items:center; justify-content:center;
+  flex-shrink:0; transition:all var(--ease); font-size:12px;
+}
+.tree-row:hover .tree-del { display:flex; }
+.tree-del:hover { background:rgba(239,68,68,.15); color:#ef4444; }
+
+.tree-new-folder {
+  width:18px; height:18px; border-radius:3px; border:none; background:transparent;
+  color:var(--text-3); cursor:pointer; display:none; align-items:center; justify-content:center;
+  flex-shrink:0; transition:all var(--ease);
+}
+.tree-row:hover .tree-new-folder { display:flex; }
+.tree-new-folder:hover { background:rgba(245,166,35,.15); color:#f5a623; }
+
+.tree-folder-del {
+  width:18px; height:18px; border-radius:3px; border:none; background:transparent;
+  color:var(--text-3); cursor:pointer; display:none; align-items:center; justify-content:center;
+  flex-shrink:0; transition:all var(--ease);
+}
+.tree-row:hover .tree-folder-del { display:flex; }
+.tree-folder-del:hover { background:rgba(239,68,68,.15); color:#ef4444; }
+
+/* permanent badge */
+.perm-dot { width:5px; height:5px; border-radius:50%; background:var(--text-3); flex-shrink:0; opacity:.5; }
+
+.tree-children { display:none; }
+.tree-children.open { display:block; }
+
+.sidebar-foot { padding:11px 14px; border-top:1px solid var(--border); display:flex; align-items:center; gap:9px; flex-shrink:0; }
+.status-dot { width:7px; height:7px; border-radius:50%; background:var(--accent); box-shadow:0 0 7px var(--accent); flex-shrink:0; }
+.status-txt { font-size:11px; color:var(--text-3); }
+
+/* ── MAIN ── */
+.main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+
+.topbar { height:48px; border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 22px; gap:8px; flex-shrink:0; background:var(--bg-surface); }
+.breadcrumb { display:flex; align-items:center; gap:5px; font-family:var(--fmono); font-size:12px; color:var(--text-2); flex:1; min-width:0; overflow:hidden; }
+.bc-sep { color:var(--text-3); flex-shrink:0; }
+.bc-part { cursor:pointer; white-space:nowrap; transition:color var(--ease); }
+.bc-part:hover { color:var(--accent); }
+.bc-part:last-child { color:var(--text); overflow:hidden; text-overflow:ellipsis; }
+
+.btn { display:inline-flex; align-items:center; gap:6px; padding:5px 11px; border-radius:var(--r-sm); font-family:var(--fui); font-size:12px; font-weight:500; cursor:pointer; border:none; transition:all var(--ease); white-space:nowrap; flex-shrink:0; }
+.btn-primary { background:var(--accent); color:#0b0d0e; }
+.btn-primary:hover { background:#00f09a; box-shadow:0 0 16px var(--accent-glow); }
+.btn-ghost { background:transparent; color:var(--text-2); border:1px solid var(--border-hi); }
+.btn-ghost:hover { background:var(--bg-hover); color:var(--text); }
+.btn-danger { background:transparent; color:#ef4444; border:1px solid rgba(239,68,68,.25); }
+.btn-danger:hover { background:rgba(239,68,68,.1); }
+
+/* env editor content */
+.content { flex:1; overflow-y:auto; padding:26px; display:flex; flex-direction:column; gap:24px; }
+
+/* code editor content */
+.code-wrap { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+.code-toolbar { padding:10px 20px; border-bottom:1px solid var(--border); background:var(--bg-surface); display:flex; align-items:center; gap:10px; flex-shrink:0; }
+.code-filename { font-family:var(--fmono); font-size:13px; color:var(--text); font-weight:500; }
+.unsaved-dot { width:7px; height:7px; border-radius:50%; background:#f59e0b; display:none; }
+.unsaved-dot.show { display:block; }
+.code-area {
+  flex:1; background:var(--bg-base); border:none; padding:20px 24px;
+  font-family:var(--fmono); font-size:13px; color:var(--text);
+  line-height:1.75; resize:none; outline:none; overflow-y:auto;
+  tab-size:2; -moz-tab-size:2;
+}
+.code-area::placeholder { color:var(--text-3); }
+
+/* empty state */
+.empty { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; color:var(--text-3); text-align:center; }
+.empty-icon { width:52px; height:52px; border-radius:14px; background:var(--bg-elevated); display:flex; align-items:center; justify-content:center; margin-bottom:2px; }
+.empty-title { font-size:13.5px; color:var(--text-2); font-weight:500; }
+.empty-desc  { font-size:12px; color:var(--text-3); max-width:210px; line-height:1.7; }
+
+/* section */
+.sec-head { font-size:10.5px; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:var(--text-3); margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+.sec-head::after { content:''; flex:1; height:1px; background:var(--border); }
+.cnt-badge { display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:18px; padding:0 5px; border-radius:9px; background:var(--bg-elevated); font-size:10px; font-weight:600; color:var(--text-3); border:1px solid var(--border); }
+
+/* form */
+.form-card { background:var(--bg-surface); border:1px solid var(--border); border-radius:var(--r); padding:18px; display:flex; flex-direction:column; gap:14px; }
+.form-row { display:grid; grid-template-columns:1fr 130px; gap:10px; }
+.fgrp { display:flex; flex-direction:column; gap:5px; }
+.flbl { font-size:10.5px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--text-3); }
+.finput, .fselect, .ftextarea {
+  background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--r-sm);
+  padding:7px 10px; font-family:var(--fmono); font-size:12.5px; color:var(--text); outline:none; width:100%;
+  transition:border-color var(--ease), box-shadow var(--ease);
+}
+.finput:focus, .fselect:focus, .ftextarea:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-dim); }
+.finput::placeholder, .ftextarea::placeholder { color:var(--text-3); }
+.fselect { font-family:var(--fui); cursor:pointer; appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='%23424d58' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 9px center; padding-right:26px; }
+.fselect option { background:var(--bg-elevated); }
+.ftextarea { resize:vertical; min-height:84px; line-height:1.6; font-size:12px; }
+.form-actions { display:flex; justify-content:flex-end; gap:7px; padding-top:2px; }
+
+/* table */
+.tbl-wrap { background:var(--bg-surface); border:1px solid var(--border); border-radius:var(--r); overflow:hidden; }
+table { width:100%; border-collapse:collapse; }
+thead tr { background:var(--bg-elevated); border-bottom:1px solid var(--border); }
+thead th { padding:9px 15px; text-align:left; font-size:10.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--text-3); white-space:nowrap; }
+tbody tr { border-bottom:1px solid var(--border); transition:background var(--ease); }
+tbody tr:last-child { border-bottom:none; }
+tbody tr:hover { background:var(--bg-hover); }
+tbody td { padding:10px 15px; vertical-align:middle; }
+.td-key { font-family:var(--fmono); font-size:12.5px; color:var(--text); font-weight:500; white-space:nowrap; }
+.td-val { font-family:var(--fmono); font-size:12px; color:var(--text-2); max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.masked { letter-spacing:4px; color:var(--text-3); font-size:10px; }
+.badge { display:inline-flex; align-items:center; padding:2px 7px; border-radius:3px; font-family:var(--fmono); font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; white-space:nowrap; }
+.bd-env  { background:rgba(110,231,183,.08); color:#6ee7b7; border:1px solid rgba(110,231,183,.15); }
+.bd-yaml { background:rgba(196,181,253,.08); color:#c4b5fd; border:1px solid rgba(196,181,253,.15); }
+.bd-json { background:rgba(125,211,252,.08); color:#7dd3fc; border:1px solid rgba(125,211,252,.15); }
+.row-acts { display:flex; align-items:center; gap:3px; opacity:0; transition:opacity var(--ease); }
+tbody tr:hover .row-acts { opacity:1; }
+.ibtn { width:26px; height:26px; border-radius:var(--r-sm); background:transparent; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; color:var(--text-3); transition:all var(--ease); }
+.ibtn:hover        { background:var(--bg-hover); color:var(--text); }
+.ibtn.del:hover    { background:rgba(239,68,68,.12); color:#ef4444; }
+.ibtn.reveal:hover { background:var(--accent-dim); color:var(--accent); }
+.tbl-empty { padding:26px; text-align:center; color:var(--text-3); font-size:12px; background:var(--bg-surface); border:1px dashed var(--border); border-radius:var(--r); }
+
+/* ── MODAL ── */
+.modal-bg {
+  position:fixed; inset:0; background:rgba(0,0,0,.6); backdrop-filter:blur(4px);
+  display:flex; align-items:center; justify-content:center; z-index:200;
+  opacity:0; pointer-events:none; transition:opacity 180ms ease;
+}
+.modal-bg.show { opacity:1; pointer-events:all; }
+.modal {
+  background:var(--bg-elevated); border:1px solid var(--border-hi);
+  border-radius:10px; padding:22px; width:340px;
+  box-shadow:0 20px 60px rgba(0,0,0,.6);
+  transform:translateY(8px) scale(.98);
+  transition:transform 180ms cubic-bezier(.16,1,.3,1);
+}
+.modal-bg.show .modal { transform:translateY(0) scale(1); }
+.modal-title { font-size:14px; font-weight:600; color:var(--text); margin-bottom:18px; }
+.modal-body { display:flex; flex-direction:column; gap:14px; margin-bottom:20px; }
+.type-btns { display:flex; gap:6px; }
+.type-btn {
+  flex:1; padding:7px; border-radius:var(--r-sm); border:1px solid var(--border-hi);
+  background:transparent; color:var(--text-2); cursor:pointer; font-family:var(--fmono);
+  font-size:11.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em;
+  transition:all var(--ease);
+}
+.type-btn:hover { background:var(--bg-hover); color:var(--text); }
+.type-btn.active { border-color:var(--accent); background:var(--accent-dim); color:var(--accent); }
+.type-btn.disabled { opacity:.3; cursor:not-allowed; pointer-events:none; }
+.modal-foot { display:flex; justify-content:flex-end; gap:8px; }
+
+/* toast */
+.toast { position:fixed; bottom:18px; right:18px; background:var(--bg-elevated); border:1px solid var(--border-hi); border-radius:var(--r); padding:9px 14px; font-size:12.5px; color:var(--text); display:flex; align-items:center; gap:9px; box-shadow:0 6px 28px rgba(0,0,0,.55); transform:translateY(6px); opacity:0; transition:all 240ms cubic-bezier(.16,1,.3,1); pointer-events:none; z-index:999; }
+.toast.show { opacity:1; transform:translateY(0); }
+.toast-dot { width:6px; height:6px; border-radius:50%; background:var(--accent); box-shadow:0 0 6px var(--accent); flex-shrink:0; }
+
+@keyframes fu { from { opacity:0; transform:translateY(7px); } to { opacity:1; transform:translateY(0); } }
+.anim  { animation:fu 180ms ease forwards; }
+.anim2 { animation:fu 180ms ease 70ms both; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <rect x="3" y="11" width="18" height="11" rx="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+      </div>
+      <div>
+        <div class="logo-name">Vault</div>
+        <div class="logo-sub">Secrets Manager</div>
+      </div>
+    </div>
+
+    <div class="search-wrap">
+      <div class="inner">
+        <span class="icon">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+        </span>
+        <input class="search-input" id="searchInput" type="text" placeholder="Search…" oninput="filterTree(this.value)">
+      </div>
+    </div>
+
+    <div class="tree-scroll" id="treeWrap"></div>
+
+    <div class="sidebar-foot">
+      <div class="status-dot"></div>
+      <span class="status-txt">Connected · TLS 1.3</span>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="topbar">
+      <div class="breadcrumb" id="breadcrumb">
+        <span class="bc-part" onclick="selectRoot()">~</span>
+      </div>
+      <button class="btn btn-ghost" id="exportBtn" onclick="exportSecrets()" style="display:none">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Export
+      </button>
+      <button class="btn btn-primary" id="saveCodeBtn" onclick="saveCode()" style="display:none">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+          <polyline points="17 21 17 13 7 13 7 21"/>
+          <polyline points="7 3 7 8 15 8"/>
+        </svg>
+        Save
+      </button>
+    </div>
+
+    <div id="mainArea" style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
+      <div class="content">
+        <div class="empty">
+          <div class="empty-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" color="#424d58">
+              <rect x="3" y="11" width="18" height="11" rx="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </div>
+          <div class="empty-title">No file selected</div>
+          <div class="empty-desc">Pick a secret file from the namespace tree to view and manage its contents.</div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- FILE / FOLDER MODAL -->
+<div class="modal-bg" id="modalBg" onclick="closeModal()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title" id="modalTitle">New File</div>
+    <div class="modal-body">
+      <div class="fgrp" id="mNameWrap">
+        <label class="flbl" id="mNameLabel">Filename</label>
+        <input class="finput" id="mFileName" type="text" placeholder="e.g. config" autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter')confirmCreate()">
+      </div>
+      <div class="fgrp" id="mTypeWrap">
+        <label class="flbl">Type</label>
+        <div class="type-btns" id="typeBtns">
+          <button class="type-btn" id="tbEnv"  onclick="setType('env')">ENV</button>
+          <button class="type-btn active" id="tbYaml" onclick="setType('yaml')">YAML</button>
+          <button class="type-btn" id="tbJson" onclick="setType('json')">JSON</button>
+          <button class="type-btn" id="tbTxt"  onclick="setType('txt')">TXT</button>
+        </div>
+        <div id="envNote" style="display:none;font-size:11px;color:var(--text-3);margin-top:4px">Filename will be <span style="font-family:var(--fmono);color:var(--text-2)">.env</span></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmCreate()">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM DELETE MODAL -->
+<div class="modal-bg" id="confirmBg" onclick="closeConfirm()">
+  <div class="modal" style="width:310px" onclick="event.stopPropagation()">
+    <div class="modal-title">Delete Folder</div>
+    <p style="font-size:12.5px;color:var(--text-2);line-height:1.7;margin-bottom:20px">
+      Delete <span id="confirmName" style="font-family:var(--fmono);color:var(--text)"></span>?<br>
+      <span style="color:var(--text-3);font-size:11.5px">All files and secrets inside will be removed.</span>
+    </p>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeConfirm()">Cancel</button>
+      <button class="btn btn-danger" onclick="confirmDeleteFolder()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"><div class="toast-dot"></div><span id="toastMsg"></span></div>
+
+<script>
+// ── API ───────────────────────────────────────────────────────────────
+async function apiFetch(url, opts={}) {
+  const res = await fetch(url, {
+    headers: { 'Content-Type': 'application/json' },
+    ...opts,
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.message || 'Request failed');
+  return json.data;
+}
+
+// ── CACHES ────────────────────────────────────────────────────────────
+const secretsCache  = {};  // fileId  -> [{id, key_name, ...}]
+const revealCache   = {};  // secretId -> plaintext
+const contentCache  = {};  // fileId  -> plaintext
+
+// ── STATE ─────────────────────────────────────────────────────────────
+let activeId      = null;
+let activeNode    = null;
+let modalFolderId = null;
+let modalType     = 'yaml';
+let codeChanged   = false;
+
+// ── URL STATE ─────────────────────────────────────────────────────────
+function getUrlParams() {
+  const p = new URLSearchParams(location.search);
+  const open = new Set((p.get('open') || '').split(',').filter(Boolean));
+  const file  = p.get('file') || null;
+  return { open, file };
+}
+function pushUrl() {
+  const ids = [];
+  function collect(nodes) { nodes.forEach(n => { if (n.t==='folder') { if (n.open) ids.push(n.id); collect(n.ch||[]); } }); }
+  collect(TREE);
+  const p = new URLSearchParams();
+  if (ids.length)  p.set('open', ids.join(','));
+  if (activeId)    p.set('file', activeId);
+  const qs = p.toString();
+  history.replaceState(null, '', qs ? '?' + qs : location.pathname);
+}
+function loadOpenSet() { return getUrlParams().open; }
+
+// ── TREE LOADING ──────────────────────────────────────────────────────
+function mapApiNamespaces(nsList, openSet) {
+  openSet = openSet || loadOpenSet();
+  return (nsList || []).map(ns => ({
+    id:          ns.id,
+    name:        ns.name,
+    t:           'folder',
+    open:        openSet.has(ns.id),
+    ch:          mapApiNamespaces(ns.children, openSet),
+    filesLoaded: false,
+  }));
+}
+
+async function loadTree() {
+  try {
+    const data = await apiFetch('/api/namespaces/tree');
+    TREE = mapApiNamespaces(data);
+    const openFolders = [];
+    function collectOpen(nodes) { nodes.forEach(n => { if (n.t==='folder' && n.open) { openFolders.push(n.id); collectOpen(n.ch||[]); } }); }
+    collectOpen(TREE);
+    await Promise.all(openFolders.map(id => loadFilesForFolder(id)));
+    buildTree();
+    const { file } = getUrlParams();
+    if (file) await pick(file);
+  } catch(e) {
+    toast('Failed to load tree: ' + e.message);
+  }
+}
+
+async function loadFilesForFolder(nsId) {
+  const node = findNode(nsId);
+  if (!node || node.filesLoaded) return;
+  try {
+    const files = await apiFetch('/api/namespaces/' + nsId + '/files');
+    const fileNodes = (files || []).map(f => ({
+      id:   f.id,
+      name: f.name,
+      t:    'file',
+      ext:  f.ext,
+      nsId: nsId,
+    }));
+    const subFolders = node.ch.filter(c => c.t === 'folder');
+    node.ch = [...subFolders, ...fileNodes];
+    node.filesLoaded = true;
+  } catch(e) {
+    toast('Failed to load files: ' + e.message);
+  }
+}
+
+// ── SVG ───────────────────────────────────────────────────────────────
+const I = {
+  folderClosed: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`,
+  folderOpen:   `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="2" y1="10" x2="22" y2="10"/></svg>`,
+  file:         `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`,
+  chev:         `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>`,
+  eye:          `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`,
+  eyeOff:       `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`,
+  copy:         `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`,
+  trash:        `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
+  plus:         `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
+  save:         `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>`,
+  lock:         `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" color="#424d58"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
+  dl:           `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
+};
+
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+// ── TREE ──────────────────────────────────────────────────────────────
+function findNode(id, nodes=TREE) {
+  for (const n of nodes) {
+    if (n.id===id) return n;
+    if (n.ch) { const f=findNode(id,n.ch); if(f) return f; }
+  }
+  return null;
+}
+
+function nodePath(id, nodes=TREE, path=[]) {
+  for (const n of nodes) {
+    const p=[...path, n.name];
+    if (n.id===id) return p;
+    if (n.ch) { const f=nodePath(id,n.ch,p); if(f) return f; }
+  }
+  return null;
+}
+
+function renderNodes(nodes, depth=0) {
+  return nodes.map(n => {
+    const pad = 8 + depth*16;
+    const isFolder = n.t==='folder';
+    const isActive = n.id===activeId;
+    const iconCls  = isFolder ? 'ic-folder' : `ic-${n.ext}`;
+    const iconSvg  = isFolder ? (n.open ? I.folderOpen : I.folderClosed) : I.file;
+    const chevCls  = isFolder ? (n.open ? 'open' : '') : 'hidden';
+
+    const folderSvg = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`;
+    const addBtn = isFolder
+      ? `<button class="tree-add" title="New file" onclick="event.stopPropagation();openModal('${n.id}')">${I.plus}</button>
+         <button class="tree-new-folder" title="New subfolder" onclick="event.stopPropagation();openFolderModal('${n.id}')">${folderSvg}</button>
+         <button class="tree-folder-del" title="Delete folder" onclick="event.stopPropagation();openConfirmDelete('${n.id}')">${I.trash}</button>`
+      : `<button class="tree-del" title="Delete file" onclick="event.stopPropagation();deleteFile('${n.id}')">${I.trash}</button>`;
+
+    const extTag = (!isFolder && n.ext !== 'env')
+      ? `<span class="ext-tag xt-${n.ext}">${n.ext}</span>`
+      : '';
+
+    const permDot = '';
+
+    const children = isFolder && n.ch
+      ? `<div class="tree-children ${n.open?'open':''}">${renderNodes(n.ch, depth+1)}</div>`
+      : '';
+
+    return `<div class="tree-node" id="nd-${n.id}">
+      <div class="tree-row ${isActive?'active':''}" onclick="pick('${n.id}')" style="padding-left:${pad}px">
+        <span class="chev ${chevCls}">${I.chev}</span>
+        <span class="tree-icon ${iconCls}">${iconSvg}</span>
+        <span class="tree-name">${esc(n.name)}</span>
+        ${permDot}${extTag}${addBtn}
+      </div>
+      ${children}
+    </div>`;
+  }).join('');
+}
+
+function buildTree() {
+  document.getElementById('treeWrap').innerHTML =
+    `<div class="tree-label" style="display:flex;align-items:center;justify-content:space-between;padding-right:10px">
+       <span>Namespaces</span>
+       <button style="background:transparent;border:none;cursor:pointer;color:var(--text-3);display:flex;align-items:center;gap:3px;font-size:11px;font-family:var(--fui);padding:2px 4px;border-radius:3px;transition:all var(--ease)" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-3)'" onclick="openFolderModal(null)" title="New root folder">
+         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+         New
+       </button>
+     </div>` + renderNodes(TREE);
+}
+
+// ── NAVIGATION ───────────────────────────────────────────────────────
+async function pick(id) {
+  const node = findNode(id);
+  if (!node) return;
+
+  if (node.t === 'folder') {
+    node.open = !node.open;
+    if (node.open && !node.filesLoaded) {
+      await loadFilesForFolder(id);
+    }
+    pushUrl();
+    buildTree();
+    return;
+  }
+
+  activeId = id;
+  activeNode = node;
+  codeChanged = false;
+  pushUrl();
+  buildTree();
+
+  const path = nodePath(id) || [];
+  renderBreadcrumb(path);
+  routeEditor(id, node);
+}
+
+function selectRoot() {
+  activeId = activeNode = null;
+  codeChanged = false;
+  pushUrl();
+  document.getElementById('breadcrumb').innerHTML = `<span class="bc-part" onclick="selectRoot()">~</span>`;
+  document.getElementById('exportBtn').style.display = 'none';
+  document.getElementById('saveCodeBtn').style.display = 'none';
+  document.getElementById('mainArea').innerHTML = `
+    <div class="content">
+      <div class="empty">
+        <div class="empty-icon">${I.lock}</div>
+        <div class="empty-title">No file selected</div>
+        <div class="empty-desc">Pick a secret file from the namespace tree to view and manage its contents.</div>
+      </div>
+    </div>`;
+}
+
+function renderBreadcrumb(path) {
+  let h = `<span class="bc-part" onclick="selectRoot()">~</span>`;
+  path.forEach(p => { h += `<span class="bc-sep">/</span><span class="bc-part">${esc(p)}</span>`; });
+  document.getElementById('breadcrumb').innerHTML = h;
+}
+
+// ── EDITOR ROUTING ────────────────────────────────────────────────────
+async function routeEditor(fileId, node) {
+  if (node.ext === 'env') {
+    document.getElementById('exportBtn').style.display = '';
+    document.getElementById('saveCodeBtn').style.display = 'none';
+    renderEnvEditor(fileId);
+  } else {
+    document.getElementById('exportBtn').style.display = 'none';
+    document.getElementById('saveCodeBtn').style.display = '';
+    renderCodeEditor(fileId, node);
+  }
+}
+
+// ── ENV EDITOR ────────────────────────────────────────────────────────
+async function renderEnvEditor(fileId) {
+  if (!secretsCache[fileId]) {
+    document.getElementById('mainArea').innerHTML =
+      `<div class="content"><div class="empty"><div class="empty-title">Loading secrets…</div></div></div>`;
+    try {
+      secretsCache[fileId] = await apiFetch('/api/files/' + fileId + '/secrets') || [];
+    } catch(e) {
+      toast('Failed to load secrets: ' + e.message);
+      secretsCache[fileId] = [];
+    }
+  }
+
+  const secrets = secretsCache[fileId];
+
+  const tableHTML = secrets.length
+    ? `<div class="tbl-wrap"><table>
+        <thead><tr><th>Key</th><th>Type</th><th>Value</th><th style="width:88px">Actions</th></tr></thead>
+        <tbody id="stbody">${rowsHTML(fileId)}</tbody>
+      </table></div>`
+    : `<div class="tbl-empty">No secrets yet — add your first one above.</div>`;
+
+  document.getElementById('mainArea').innerHTML = `
+    <div class="content">
+      <div class="anim">
+        <div class="sec-head">Add Secret</div>
+        <div class="form-card">
+          <div class="form-row">
+            <div class="fgrp">
+              <label class="flbl">Key</label>
+              <input class="finput" id="nKey" type="text" placeholder="SECRET_KEY_NAME" autocomplete="off" spellcheck="false">
+            </div>
+          </div>
+          <div class="fgrp">
+            <label class="flbl">Value</label>
+            <textarea class="ftextarea" id="nVal" placeholder="Enter secret value…" rows="3"></textarea>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-ghost" onclick="clearForm()">Clear</button>
+            <button class="btn btn-primary" onclick="addSecret('${fileId}')">${I.plus} Add Secret</button>
+          </div>
+        </div>
+      </div>
+      <div class="anim2">
+        <div class="sec-head">Secrets <span class="cnt-badge">${secrets.length}</span></div>
+        ${tableHTML}
+      </div>
+    </div>`;
+}
+
+function rowsHTML(fileId) {
+  return (secretsCache[fileId]||[]).map(s => {
+    const revealed = revealCache[s.id];
+    return `
+    <tr id="sr-${s.id}">
+      <td class="td-key">${esc(s.key_name)}</td>
+      <td><span class="badge bd-env">env</span></td>
+      <td class="td-val" id="sv-${s.id}">
+        ${revealed ? esc(revealed) : '<span class="masked">••••••••••••</span>'}
+      </td>
+      <td>
+        <div class="row-acts">
+          <button class="ibtn reveal" title="${revealed?'Hide':'Reveal'}" onclick="toggleVis('${fileId}','${s.id}')">${revealed?I.eyeOff:I.eye}</button>
+          <button class="ibtn" title="Copy" onclick="cpSecret('${s.id}')">${I.copy}</button>
+          <button class="ibtn del" title="Delete" onclick="delSecret('${fileId}','${s.id}')">${I.trash}</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ── CODE EDITOR ───────────────────────────────────────────────────────
+async function renderCodeEditor(fileId, node) {
+  if (contentCache[fileId] === undefined) {
+    document.getElementById('mainArea').innerHTML =
+      `<div class="content"><div class="empty"><div class="empty-title">Loading…</div></div></div>`;
+    try {
+      const data = await apiFetch('/api/files/' + fileId + '/content');
+      contentCache[fileId] = data.content || '';
+    } catch(e) {
+      contentCache[fileId] = defaultContent(node.ext);
+    }
+  }
+  const content = contentCache[fileId];
+
+  const extColors = { yaml:'#c4b5fd', json:'#7dd3fc', txt:'#94a3b8' };
+  const color = extColors[node.ext] || '#94a3b8';
+
+  document.getElementById('mainArea').innerHTML = `
+    <div class="code-wrap">
+      <div class="code-toolbar">
+        <span class="code-filename">${esc(node.name)}</span>
+        <span style="font-size:10px;font-family:var(--fmono);color:${color};background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);padding:2px 7px;border-radius:3px;text-transform:uppercase;font-weight:600">${node.ext}</span>
+        <span class="unsaved-dot" id="unsavedDot" title="Unsaved changes"></span>
+        <div style="flex:1"></div>
+        <span style="font-size:11px;color:var(--text-3)">Ctrl+S to save</span>
+      </div>
+      <textarea class="code-area" id="codeArea" spellcheck="false" placeholder="Start typing…">${esc(content)}</textarea>
+    </div>`;
+
+  const ta = document.getElementById('codeArea');
+
+  ta.addEventListener('input', () => {
+    codeChanged = true;
+    document.getElementById('unsavedDot').classList.add('show');
+  });
+
+  ta.addEventListener('keydown', e => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const s = ta.selectionStart;
+      ta.value = ta.value.substring(0,s) + '  ' + ta.value.substring(ta.selectionEnd);
+      ta.selectionStart = ta.selectionEnd = s + 2;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      saveCode();
+    }
+  });
+}
+
+function defaultContent(ext) {
+  if (ext === 'yaml') return '# Configuration\n\n';
+  if (ext === 'json') return '{\n  \n}\n';
+  return '';
+}
+
+async function saveCode() {
+  if (!activeId || !activeNode) return;
+  const ta = document.getElementById('codeArea');
+  if (!ta) return;
+  const content = ta.value;
+  try {
+    await apiFetch('/api/files/' + activeId + '/content', {
+      method: 'PUT',
+      body: JSON.stringify({ content }),
+    });
+    contentCache[activeId] = content;
+    codeChanged = false;
+    const dot = document.getElementById('unsavedDot');
+    if (dot) dot.classList.remove('show');
+    toast('Saved');
+  } catch(e) {
+    toast('Save failed: ' + e.message);
+  }
+}
+
+// ── ENV ACTIONS ──────────────────────────────────────────────────────
+async function addSecret(fileId) {
+  const key = document.getElementById('nKey').value.trim();
+  const val = document.getElementById('nVal').value.trim();
+  if (!key) { toast('Key is required'); return; }
+  if (!val)  { toast('Value is required'); return; }
+  try {
+    await apiFetch('/api/files/' + fileId + '/secrets', {
+      method: 'POST',
+      body: JSON.stringify({ key_name: key, value: val }),
+    });
+    delete secretsCache[fileId];
+    clearForm();
+    await renderEnvEditor(fileId);
+    toast('Added "' + key + '"');
+  } catch(e) {
+    toast('Failed: ' + e.message);
+  }
+}
+
+function clearForm() {
+  const k=document.getElementById('nKey'), v=document.getElementById('nVal');
+  if(k) k.value=''; if(v) v.value='';
+}
+
+async function toggleVis(fileId, secretId) {
+  if (revealCache[secretId]) {
+    delete revealCache[secretId];
+    const el = document.getElementById('sv-' + secretId);
+    if (el) el.innerHTML = '<span class="masked">••••••••••••</span>';
+    const btn = document.querySelector('#sr-' + secretId + ' .ibtn.reveal');
+    if (btn) { btn.innerHTML = I.eye; btn.title = 'Reveal'; }
+    return;
+  }
+  try {
+    const data = await apiFetch('/api/secrets/' + secretId + '/reveal');
+    revealCache[secretId] = data.value;
+    const el = document.getElementById('sv-' + secretId);
+    if (el) el.innerHTML = esc(data.value);
+    const btn = document.querySelector('#sr-' + secretId + ' .ibtn.reveal');
+    if (btn) { btn.innerHTML = I.eyeOff; btn.title = 'Hide'; }
+  } catch(e) {
+    toast('Reveal failed: ' + e.message);
+  }
+}
+
+async function cpSecret(secretId) {
+  try {
+    const plain = revealCache[secretId] || (await apiFetch('/api/secrets/' + secretId + '/reveal')).value;
+    navigator.clipboard.writeText(plain).then(()=>toast('Copied')).catch(()=>toast('Copy failed'));
+  } catch(e) {
+    toast('Copy failed: ' + e.message);
+  }
+}
+
+async function delSecret(fileId, secretId) {
+  try {
+    await apiFetch('/api/secrets/' + secretId, { method: 'DELETE' });
+    delete revealCache[secretId];
+    delete secretsCache[fileId];
+    await renderEnvEditor(fileId);
+    toast('Secret deleted');
+  } catch(e) {
+    toast('Failed: ' + e.message);
+  }
+}
+
+async function exportSecrets() {
+  if (!activeId || !secretsCache[activeId] || !secretsCache[activeId].length) {
+    toast('No secrets to export'); return;
+  }
+  try {
+    const lines = await Promise.all(secretsCache[activeId].map(async s => {
+      const plain = revealCache[s.id] || (await apiFetch('/api/secrets/' + s.id + '/reveal')).value;
+      revealCache[s.id] = plain;
+      return s.key_name + '=' + plain;
+    }));
+    navigator.clipboard.writeText(lines.join('\n')).then(()=>toast('Exported ' + lines.length + ' secrets'));
+  } catch(e) {
+    toast('Export failed: ' + e.message);
+  }
+}
+
+// ── MODAL (NEW FILE / FOLDER) ─────────────────────────────────────────
+let modalMode = 'file';
+let confirmDeleteId = null;
+
+function openModal(folderId) {
+  modalMode = 'file';
+  modalFolderId = folderId;
+  modalType = 'yaml';
+
+  const folder = findNode(folderId);
+  const hasEnv = !!(folder && folder.ch && folder.ch.find(c => c.name === '.env'));
+
+  document.getElementById('modalTitle').textContent = 'New File';
+  document.getElementById('mNameLabel').textContent = 'Filename';
+  document.getElementById('mFileName').placeholder = 'e.g. config';
+  document.getElementById('mFileName').value = '';
+  document.getElementById('mNameWrap').style.display = '';
+  document.getElementById('mTypeWrap').style.display = '';
+  document.getElementById('envNote').style.display = 'none';
+  document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active', 'disabled'));
+  document.getElementById('tbYaml').classList.add('active');
+  if (hasEnv) document.getElementById('tbEnv').classList.add('disabled');
+
+  document.getElementById('modalBg').classList.add('show');
+  setTimeout(() => document.getElementById('mFileName').focus(), 80);
+}
+
+function openFolderModal(parentId) {
+  modalMode = 'folder';
+  modalFolderId = parentId;
+
+  document.getElementById('modalTitle').textContent = 'New Folder';
+  document.getElementById('mNameLabel').textContent = 'Folder Name';
+  document.getElementById('mFileName').placeholder = 'e.g. services';
+  document.getElementById('mFileName').value = '';
+  document.getElementById('mNameWrap').style.display = '';
+  document.getElementById('mTypeWrap').style.display = 'none';
+  document.getElementById('envNote').style.display = 'none';
+
+  document.getElementById('modalBg').classList.add('show');
+  setTimeout(() => document.getElementById('mFileName').focus(), 80);
+}
+
+function closeModal() {
+  document.getElementById('modalBg').classList.remove('show');
+}
+
+function setType(t) {
+  modalType = t;
+  document.querySelectorAll('.type-btn').forEach(b => {
+    b.classList.toggle('active', b.id === 'tb' + t.charAt(0).toUpperCase() + t.slice(1));
+  });
+  if (t === 'env') {
+    document.getElementById('mNameWrap').style.display = 'none';
+    document.getElementById('envNote').style.display = '';
+  } else {
+    document.getElementById('mNameWrap').style.display = '';
+    document.getElementById('envNote').style.display = 'none';
+  }
+}
+
+async function confirmCreate() {
+  if (modalMode === 'folder') {
+    const name = document.getElementById('mFileName').value.trim();
+    if (!name) { toast('Enter a folder name'); return; }
+    try {
+      const body = { name };
+      if (modalFolderId) body.parent_id = modalFolderId;
+      await apiFetch('/api/namespaces', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      closeModal();
+      await loadTree();
+      toast('Created folder "' + name + '"');
+    } catch(e) {
+      toast('Failed: ' + e.message);
+    }
+    return;
+  }
+
+  // file mode
+  if (!modalFolderId) { toast('Select a folder first'); return; }
+  let name, ext;
+  if (modalType === 'env') {
+    name = '.env'; ext = 'env';
+  } else {
+    const raw = document.getElementById('mFileName').value.trim();
+    if (!raw) { toast('Enter a filename'); return; }
+    const extMap = { yaml:'.yaml', json:'.json', txt:'.txt' };
+    ext = modalType;
+    name = raw.includes('.') ? raw : raw + extMap[modalType];
+  }
+
+  try {
+    const data = await apiFetch('/api/namespaces/' + modalFolderId + '/files', {
+      method: 'POST',
+      body: JSON.stringify({ name, ext }),
+    });
+    // mark folder files as stale
+    const folder = findNode(modalFolderId);
+    if (folder) { folder.filesLoaded = false; folder.open = true; }
+    closeModal();
+    await loadFilesForFolder(modalFolderId);
+    buildTree();
+    // pick the new file
+    const newNode = findNodeByName(modalFolderId, name);
+    if (newNode) pick(newNode.id);
+    toast('Created "' + name + '"');
+  } catch(e) {
+    toast('Failed: ' + e.message);
+  }
+}
+
+function findNodeByName(parentId, name, nodes=TREE) {
+  for (const n of nodes) {
+    if (n.id === parentId && n.ch) {
+      const f = n.ch.find(c => c.name === name);
+      if (f) return f;
+    }
+    if (n.ch) {
+      const f = findNodeByName(parentId, name, n.ch);
+      if (f) return f;
+    }
+  }
+  return null;
+}
+
+// ── CONFIRM DELETE FOLDER ─────────────────────────────────────────────
+function openConfirmDelete(id) {
+  const node = findNode(id);
+  if (!node) return;
+  confirmDeleteId = id;
+  document.getElementById('confirmName').textContent = node.name + '/';
+  document.getElementById('confirmBg').classList.add('show');
+}
+
+function closeConfirm() {
+  document.getElementById('confirmBg').classList.remove('show');
+  confirmDeleteId = null;
+}
+
+function collectFileIds(node, ids=[]) {
+  if (node.t === 'file') { ids.push(node.id); return ids; }
+  if (node.ch) node.ch.forEach(c => collectFileIds(c, ids));
+  return ids;
+}
+
+async function confirmDeleteFolder() {
+  const id = confirmDeleteId;
+  if (!id) return;
+  const node = findNode(id);
+  if (!node) return;
+  const name = node.name;
+  const isFile = node.t === 'file';
+  const fileIds = collectFileIds(node);
+
+  try {
+    if (isFile) {
+      await apiFetch('/api/files/' + id, { method: 'DELETE' });
+    } else {
+      await apiFetch('/api/namespaces/' + id, { method: 'DELETE' });
+    }
+    fileIds.forEach(fid => { delete secretsCache[fid]; delete contentCache[fid]; });
+    const wasActive = activeId === id || fileIds.includes(activeId);
+    closeConfirm();
+    await loadTree();
+    if (wasActive) selectRoot();
+    toast('Deleted "' + name + '"');
+  } catch(e) {
+    toast('Failed: ' + e.message);
+    closeConfirm();
+  }
+}
+
+// ── DELETE FILE ──────────────────────────────────────────────────────
+async function deleteFile(id) {
+  const node = findNode(id);
+  if (!node) return;
+  const name = node.name;
+  try {
+    await apiFetch('/api/files/' + id, { method: 'DELETE' });
+    delete secretsCache[id];
+    delete contentCache[id];
+    if (activeId === id) { activeId = null; activeNode = null; }
+    await loadTree();
+    if (!activeId) selectRoot();
+    else buildTree();
+    toast('Deleted "' + name + '"');
+  } catch(e) {
+    toast('Failed: ' + e.message);
+  }
+}
+
+// ── SEARCH ───────────────────────────────────────────────────────────
+function filterTree(q) {
+  q = q.toLowerCase().trim();
+  document.querySelectorAll('.tree-node').forEach(el => {
+    const name = el.querySelector('.tree-name')?.textContent?.toLowerCase()||'';
+    el.style.display=(!q||name.includes(q))?'':'none';
+  });
+}
+
+// ── TOAST ─────────────────────────────────────────────────────────────
+let toastT=null;
+function toast(msg) {
+  const el=document.getElementById('toast');
+  document.getElementById('toastMsg').textContent=msg;
+  el.classList.add('show');
+  if(toastT) clearTimeout(toastT);
+  toastT=setTimeout(()=>el.classList.remove('show'),2200);
+}
+
+// ── ESC to close modal ────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key==='Escape') { closeModal(); closeConfirm(); }
+});
+
+// ── INIT ──────────────────────────────────────────────────────────────
+loadTree();
+</script>
+</body>
+</html>

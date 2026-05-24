@@ -31,20 +31,6 @@ func Run() {
 	// http command
 	rootCmd.AddCommand(httpCmd)
 
-	// migrate command
-	migrateCmd.AddCommand(migrateUpCmd)
-	migrateCmd.AddCommand(migrateDownCmd)
-	migrateCmd.AddCommand(migrateNewCmd)
-	rootCmd.AddCommand(migrateCmd)
-
-	// subscriber command
-	rootCmd.AddCommand(subscriberCmd)
-
-	// worker command
-	workerCmd.AddCommand(workerGenerateIDCmd)
-	workerCmd.AddCommand(workerOutboxRelayCmd)
-	rootCmd.AddCommand(workerCmd)
-
 	// execute root command
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatalf("failed to execute root command: %v", err)

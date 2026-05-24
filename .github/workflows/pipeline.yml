@@ -1,0 +1,54 @@
+name: Pipeline
+
+on:
+  push:
+    branches: [development, main]
+    tags:
+      - "v*"
+  pull_request:
+
+jobs:
+  ci:
+    uses: lokalabsmaya/infrastructure/.github/workflows/ci-golang.yml@main
+    permissions:
+      contents: read
+      packages: write
+      actions: write
+    secrets: inherit
+    with:
+      go_version: "1.25.0"
+      dockerfile: build/Dockerfile
+      context: .
+      release_branch: development
+
+  cd-development:
+    needs: ci
+    if: github.ref == 'refs/heads/development'
+    uses: lokalabsmaya/infrastructure/.github/workflows/cd-golang.yml@main
+    secrets:
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_USERNAME: ${{ secrets.SSH_USERNAME }}
+      SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
+    with:
+      service_path: lokalabs/infra/rasia-dev
+      compose_file: deployment/docker-compose.development.yaml
+      image_tag: development
+      lokalabs_env: development
+      environment: development
+      use_rasia: false
+
+  cd-production:
+    needs: ci
+    if: startsWith(github.ref, 'refs/tags/v')
+    uses: lokalabsmaya/infrastructure/.github/workflows/cd-golang.yml@main
+    secrets:
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_USERNAME: ${{ secrets.SSH_USERNAME }}
+      SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
+    with:
+      service_path: lokalabs/infra/rasia
+      compose_file: deployment/docker-compose.production.yaml
+      image_tag: ${{ github.ref_name }}
+      lokalabs_env: production
+      environment: production
+      use_rasia: false

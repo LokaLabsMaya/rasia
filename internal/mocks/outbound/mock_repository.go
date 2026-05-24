@@ -15,7 +15,6 @@ import (
 
 	outbound "github.com/lokalabsmaya/rasia/internal/core/port/outbound"
 	repositories "github.com/lokalabsmaya/rasia/internal/core/port/outbound/repositories"
-	qwery "github.com/redhajuanda/qwery"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -58,44 +57,58 @@ func (mr *MockRepositoryMockRecorder) DoInTransaction(ctx, fn any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DoInTransaction", reflect.TypeOf((*MockRepository)(nil).DoInTransaction), ctx, fn)
 }
 
-// GetNoteRepository mocks base method.
-func (m *MockRepository) GetNoteRepository() repositories.Note {
+// GetNamespaceRepository mocks base method.
+func (m *MockRepository) GetNamespaceRepository() repositories.Namespace {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetNoteRepository")
-	ret0, _ := ret[0].(repositories.Note)
+	ret := m.ctrl.Call(m, "GetNamespaceRepository")
+	ret0, _ := ret[0].(repositories.Namespace)
 	return ret0
 }
 
-// GetNoteRepository indicates an expected call of GetNoteRepository.
-func (mr *MockRepositoryMockRecorder) GetNoteRepository() *gomock.Call {
+// GetNamespaceRepository indicates an expected call of GetNamespaceRepository.
+func (mr *MockRepositoryMockRecorder) GetNamespaceRepository() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNoteRepository", reflect.TypeOf((*MockRepository)(nil).GetNoteRepository))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNamespaceRepository", reflect.TypeOf((*MockRepository)(nil).GetNamespaceRepository))
 }
 
-// PublishOutbox mocks base method.
-func (m *MockRepository) PublishOutbox(ctx context.Context, target outbound.PublisherTarget, topic string, payload qwery.JSONMap) error {
+// GetSecretFileRepository mocks base method.
+func (m *MockRepository) GetSecretFileRepository() repositories.SecretFile {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PublishOutbox", ctx, target, topic, payload)
-	ret0, _ := ret[0].(error)
+	ret := m.ctrl.Call(m, "GetSecretFileRepository")
+	ret0, _ := ret[0].(repositories.SecretFile)
 	return ret0
 }
 
-// PublishOutbox indicates an expected call of PublishOutbox.
-func (mr *MockRepositoryMockRecorder) PublishOutbox(ctx, target, topic, payload any) *gomock.Call {
+// GetSecretFileRepository indicates an expected call of GetSecretFileRepository.
+func (mr *MockRepositoryMockRecorder) GetSecretFileRepository() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PublishOutbox", reflect.TypeOf((*MockRepository)(nil).PublishOutbox), ctx, target, topic, payload)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSecretFileRepository", reflect.TypeOf((*MockRepository)(nil).GetSecretFileRepository))
 }
 
-// RetryOutbox mocks base method.
-func (m *MockRepository) RetryOutbox(ctx context.Context) error {
+// GetSecretRepository mocks base method.
+func (m *MockRepository) GetSecretRepository() repositories.Secret {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RetryOutbox", ctx)
-	ret0, _ := ret[0].(error)
+	ret := m.ctrl.Call(m, "GetSecretRepository")
+	ret0, _ := ret[0].(repositories.Secret)
 	return ret0
 }
 
-// RetryOutbox indicates an expected call of RetryOutbox.
-func (mr *MockRepositoryMockRecorder) RetryOutbox(ctx any) *gomock.Call {
+// GetSecretRepository indicates an expected call of GetSecretRepository.
+func (mr *MockRepositoryMockRecorder) GetSecretRepository() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetryOutbox", reflect.TypeOf((*MockRepository)(nil).RetryOutbox), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSecretRepository", reflect.TypeOf((*MockRepository)(nil).GetSecretRepository))
+}
+
+// GetFileContentRepository mocks base method.
+func (m *MockRepository) GetFileContentRepository() repositories.FileContent {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetFileContentRepository")
+	ret0, _ := ret[0].(repositories.FileContent)
+	return ret0
+}
+
+// GetFileContentRepository indicates an expected call of GetFileContentRepository.
+func (mr *MockRepositoryMockRecorder) GetFileContentRepository() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFileContentRepository", reflect.TypeOf((*MockRepository)(nil).GetFileContentRepository))
 }

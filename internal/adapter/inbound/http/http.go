@@ -4,9 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/redhajuanda/komon/logger"
-	"github.com/redhajuanda/komon/tracer"
 	"github.com/lokalabsmaya/rasia/configs"
+	"github.com/redhajuanda/komon/logger"
 
 	"github.com/gofiber/fiber/v3"
 )
@@ -41,15 +40,11 @@ func NewHTTP(cfg *configs.Config, log logger.Logger, handlers []Handler) *HTTP {
 // It blocks until a shutdown signal is received or an error occurs
 func (h *HTTP) OnStart(ctx context.Context) error {
 
-	// Setup trace provider
-	err := tracer.SetTraceProvider(h.cfg.Otel.URL, h.cfg.App.Name, h.cfg.Otel.Exporter, h.cfg.Otel.SampleRate)
-	if err != nil {
-		h.log.Errorf("failed to set trace provider: %v", err)
-	}
-
 	h.log.SkipSource().WithParam("environment", h.cfg.GetEnv()).Infof("Starting HTTP server on port %s", h.cfg.Http.Port)
 	h.log.SkipSource().Info("Server will gracefully shutdown on SIGINT/SIGTERM")
 
+	// Register UI route
+	h.RegisterUIRoutes()
 	// Register swagger routes
 	h.RegisterSwaggerRoutes()
 	// Register health check routes
@@ -58,6 +53,7 @@ func (h *HTTP) OnStart(ctx context.Context) error {
 	h.RegisterPingRoutes()
 	// Register metrics routes
 	h.RegisterMetricsRoutes()
+
 	// Register all custom routes
 	h.RegisterRoutes()
 	// Register not found routes

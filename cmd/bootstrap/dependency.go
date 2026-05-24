@@ -1,28 +1,19 @@
 package bootstrap
 
 import (
-	"time"
-
-	"github.com/ThreeDotsLabs/watermill-kafka/v3/pkg/kafka"
-	"github.com/ThreeDotsLabs/watermill-redisstream/pkg/redisstream"
-	"github.com/lokalabsmaya/rasia/configs"
-	"github.com/lokalabsmaya/rasia/internal/adapter/inbound/http"
-	httpHandler "github.com/lokalabsmaya/rasia/internal/adapter/inbound/http/handler"
-	"github.com/lokalabsmaya/rasia/internal/adapter/inbound/migrate"
-	"github.com/lokalabsmaya/rasia/internal/adapter/inbound/subscriber"
-	subscriberHandler "github.com/lokalabsmaya/rasia/internal/adapter/inbound/subscriber/handler"
-	"github.com/lokalabsmaya/rasia/internal/adapter/inbound/worker"
-	"github.com/lokalabsmaya/rasia/internal/adapter/outbound/dlock"
-	"github.com/lokalabsmaya/rasia/internal/adapter/outbound/idempotency"
 	"github.com/sirupsen/logrus"
 
 	"github.com/redhajuanda/komon/logger"
-	outboundkafka "github.com/lokalabsmaya/rasia/internal/adapter/outbound/kafka"
-	"github.com/lokalabsmaya/rasia/internal/adapter/outbound/mariadb"
-	"github.com/lokalabsmaya/rasia/internal/adapter/outbound/redis"
-	outboundredisstream "github.com/lokalabsmaya/rasia/internal/adapter/outbound/redisstream"
+	"github.com/lokalabsmaya/rasia/configs"
+	"github.com/lokalabsmaya/rasia/internal/adapter/inbound/http"
+	httpHandler "github.com/lokalabsmaya/rasia/internal/adapter/inbound/http/handler"
+	"github.com/lokalabsmaya/rasia/internal/adapter/outbound/sqlite"
 	"github.com/lokalabsmaya/rasia/internal/core/port/outbound"
-	"github.com/lokalabsmaya/rasia/internal/core/service/note"
+	"github.com/lokalabsmaya/rasia/internal/core/service/export"
+	"github.com/lokalabsmaya/rasia/internal/core/service/filecontent"
+	"github.com/lokalabsmaya/rasia/internal/core/service/namespace"
+	"github.com/lokalabsmaya/rasia/internal/core/service/secret"
+	"github.com/lokalabsmaya/rasia/internal/core/service/secretfile"
 )
 
 // There are 4 types of resources:
@@ -35,31 +26,17 @@ type Dependency struct {
 
 	cfg                Resource[*configs.Config]
 	log                Resource[logger.Logger]
-	migrators          Resource[[]migrate.Migrator]
-	repository         Resource[outbound.Repository]
-	serviceNote        Resource[*note.Service]
+	secretsRepo        Resource[outbound.Repository]
+	serviceNamespace   Resource[*namespace.Service]
+	serviceSecretFile  Resource[*secretfile.Service]
+	serviceSecret      Resource[*secret.Service]
+	serviceFileContent Resource[*filecontent.Service]
+	serviceExport      Resource[*export.Service]
 	httpHandlers       Resource[[]http.Handler]
-	subscriberHandlers Resource[[]subscriber.Handler]
 
-	qweryMain   ResourceClosable[*mariadb.Qwery]
-	qweryWorker ResourceClosable[*mariadb.Qwery]
-	redis       ResourceClosable[*redis.Redis]
-	dlocker     ResourceClosable[*dlock.Dlock]
-	idempotency ResourceClosable[*idempotency.Idempotency]
+	sqliteDB ResourceClosable[*sqlite.DB]
 
-	publisherRedisstream ResourceClosable[*redisstream.Publisher]
-	publisherKafka       ResourceClosable[*kafka.Publisher]
-	publishers           Resource[outbound.Publishers]
-
-	subscriberRedisstream ResourceClosable[*redisstream.Subscriber]
-	subscriberKafka       ResourceClosable[*kafka.Subscriber]
-
-	migrate           ResourceExecutable[*migrate.Migrate]
-	migrateGenerate   ResourceExecutable[*migrate.Generate]
-	http              ResourceRunnable[*http.HTTP]
-	workerOutboxRelay ResourceExecutable[*worker.WorkerOutboxRelay]
-	workerGenerateID  ResourceExecutable[*worker.WorkerGenerateID]
-	subscriber        ResourceRunnable[*subscriber.Subscriber]
+	httpRunner ResourceRunnable[*http.HTTP]
 }
 
 // NewDependency creates a new dependency instance
@@ -98,291 +75,72 @@ func (d *Dependency) GetLogger() logger.Logger {
 	})
 }
 
-// GetRedis resolves and returns the redis dependency
-func (d *Dependency) GetRedis() *redis.Redis {
-	return d.redis.Resolve(func() *redis.Redis {
+// GetSQLiteDB resolves and returns the SQLite database dependency
+func (d *Dependency) GetSQLiteDB() *sqlite.DB {
+	return d.sqliteDB.Resolve(func() *sqlite.DB {
 		cfg := d.GetConfig()
-		return redis.NewRedis(
-			redis.Param{
-				Sentinel:     cfg.Cache.Redis.Sentinel,
-				MasterName:   cfg.Cache.Redis.MasterName,
-				Username:     cfg.Cache.Redis.Username,
-				Password:     cfg.Cache.Redis.Password,
-				Hosts:        cfg.Cache.Redis.Hosts,
-				DB:           cfg.Cache.Redis.DB,
-				MinIdleConns: cfg.Cache.Redis.MinIdleConns,
-				PoolSize:     cfg.Cache.Redis.PoolSize,
-			},
-			d.GetLogger())
+		return sqlite.NewDB(cfg.Secrets.DBPath)
 	})
 }
 
-// GetQweryMain resolves and returns the qwery main dependency
-func (d *Dependency) GetQweryMain() *mariadb.Qwery {
-	return d.qweryMain.Resolve(func() *mariadb.Qwery {
-		cfg := d.GetConfig()
-		return mariadb.NewQwery(
-			mariadb.ParamQwery{
-				Username:        cfg.Database.MariaDBMain.Username,
-				Password:        cfg.Database.MariaDBMain.Password,
-				Host:            cfg.Database.MariaDBMain.Host,
-				Port:            cfg.Database.MariaDBMain.Port,
-				DBName:          cfg.Database.MariaDBMain.DBName,
-				MaxOpenConns:    cfg.Database.MariaDBMain.MaxOpenConns,
-				MaxIdleConns:    cfg.Database.MariaDBMain.MaxIdleConns,
-				ConnMaxLifetime: cfg.Database.MariaDBMain.ConnMaxLifetime,
-				ConnMaxIdleTime: cfg.Database.MariaDBMain.ConnMaxIdleTime,
-			},
-			d.GetLogger(),
-		)
+// GetSecretsRepository resolves and returns the secrets SQLite repository dependency
+func (d *Dependency) GetSecretsRepository() outbound.Repository {
+	return d.secretsRepo.Resolve(func() outbound.Repository {
+		return sqlite.NewRepository(d.GetSQLiteDB())
 	})
 }
 
-// GetQweryWorker resolves and returns the qwery worker dependency
-func (d *Dependency) GetQweryWorker() *mariadb.Qwery {
-	return d.qweryWorker.Resolve(func() *mariadb.Qwery {
-		cfg := d.GetConfig()
-		return mariadb.NewQwery(
-			mariadb.ParamQwery{
-				Username:        cfg.Database.MariaDBWorker.Username,
-				Password:        cfg.Database.MariaDBWorker.Password,
-				Host:            cfg.Database.MariaDBWorker.Host,
-				Port:            cfg.Database.MariaDBWorker.Port,
-				DBName:          cfg.Database.MariaDBWorker.DBName,
-				MaxOpenConns:    cfg.Database.MariaDBWorker.MaxOpenConns,
-				MaxIdleConns:    cfg.Database.MariaDBWorker.MaxIdleConns,
-				ConnMaxLifetime: cfg.Database.MariaDBWorker.ConnMaxLifetime,
-				ConnMaxIdleTime: cfg.Database.MariaDBWorker.ConnMaxIdleTime,
-			},
-			d.GetLogger(),
-		)
+// GetServiceNamespace resolves and returns the namespace service dependency
+func (d *Dependency) GetServiceNamespace(repo outbound.Repository) *namespace.Service {
+	return d.serviceNamespace.Resolve(func() *namespace.Service {
+		return namespace.NewService(d.GetConfig(), d.GetLogger(), repo)
 	})
 }
 
-// GetRepository resolves and returns the repository dependency
-func (d *Dependency) GetRepository(qwery *mariadb.Qwery) outbound.Repository {
-	return d.repository.Resolve(func() outbound.Repository {
-		return mariadb.NewMariaDBRepository(d.GetConfig(), d.GetLogger(), qwery, d.GetPublishers())
+// GetServiceSecretFile resolves and returns the secret file service dependency
+func (d *Dependency) GetServiceSecretFile(repo outbound.Repository) *secretfile.Service {
+	return d.serviceSecretFile.Resolve(func() *secretfile.Service {
+		return secretfile.NewService(d.GetConfig(), d.GetLogger(), repo)
 	})
 }
 
-// GetPublisherRedisstream resolves and returns the publisher dependency
-func (d *Dependency) GetPublisherRedisstream() *redisstream.Publisher {
-	return d.publisherRedisstream.Resolve(func() *redisstream.Publisher {
-		cfg := d.GetConfig()
-		param := outboundredisstream.ParamPublisher{
-			ParamRedis: outboundredisstream.ParamRedis{
-				Sentinel:     cfg.Cache.Redis.Sentinel,
-				MasterName:   cfg.Cache.Redis.MasterName,
-				Username:     cfg.Cache.Redis.Username,
-				Password:     cfg.Cache.Redis.Password,
-				Hosts:        cfg.Cache.Redis.Hosts,
-				DB:           cfg.Cache.Redis.DB,
-				MinIdleConns: cfg.Cache.Redis.MinIdleConns,
-				PoolSize:     cfg.Cache.Redis.PoolSize,
-			},
-			DefaultMaxlen: cfg.Event.Redisstream.Publisher.DefaultMaxlen,
-		}
-		return outboundredisstream.NewPublisher(param, d.GetLogger())
+// GetServiceSecret resolves and returns the secret service dependency
+func (d *Dependency) GetServiceSecret(repo outbound.Repository) *secret.Service {
+	return d.serviceSecret.Resolve(func() *secret.Service {
+		return secret.NewService(d.GetConfig(), d.GetLogger(), repo)
 	})
 }
 
-// GetPublisherKafka resolves and returns the publisher dependency
-func (d *Dependency) GetPublisherKafka() *kafka.Publisher {
-	return d.publisherKafka.Resolve(func() *kafka.Publisher {
-		cfg := d.GetConfig()
-		param := outboundkafka.ParamPublisher{
-			Brokers:      cfg.Event.Kafka.Publisher.Brokers,
-			DebugEnabled: cfg.Event.Kafka.Publisher.DebugEnabled,
-			TraceEnabled: cfg.Event.Kafka.Publisher.TraceEnabled,
-		}
-		return outboundkafka.NewPublisher(param, d.GetLogger())
+// GetServiceFileContent resolves and returns the file content service dependency
+func (d *Dependency) GetServiceFileContent(repo outbound.Repository) *filecontent.Service {
+	return d.serviceFileContent.Resolve(func() *filecontent.Service {
+		return filecontent.NewService(d.GetConfig(), d.GetLogger(), repo)
 	})
 }
 
-func (d *Dependency) GetPublishers() outbound.Publishers {
-	return d.publishers.Resolve(func() outbound.Publishers {
-		publishers := outbound.Publishers{}
-		cfg := d.GetConfig()
-		if cfg.Event.Redisstream.Publisher.Enabled {
-			publishers[outbound.PublisherTargetRedisstream] = d.GetPublisherRedisstream()
-		}
-		if cfg.Event.Kafka.Publisher.Enabled {
-			publishers[outbound.PublisherTargetKafka] = d.GetPublisherKafka()
-		}
-		return publishers
-	})
-}
-
-// GetSubscriber resolves and returns the subscriber dependency
-func (d *Dependency) GetSubscriberRedisstream(subscriberID string) *redisstream.Subscriber {
-	return d.subscriberRedisstream.Resolve(func() *redisstream.Subscriber {
-
-		cfg := d.GetConfig()
-		cfgSubscriber := cfg.Event.Redisstream.Subscribers.GetByID(subscriberID)
-		if cfgSubscriber == nil {
-			d.GetLogger().Fatalf("redisstream subscriber config not found for subscriber ID: %s", subscriberID)
-		}
-		param := outboundredisstream.ParamSubscriber{
-			ParamRedis: outboundredisstream.ParamRedis{
-				Sentinel:     cfg.Cache.Redis.Sentinel,
-				MasterName:   cfg.Cache.Redis.MasterName,
-				Username:     cfg.Cache.Redis.Username,
-				Password:     cfg.Cache.Redis.Password,
-				Hosts:        cfg.Cache.Redis.Hosts,
-				DB:           cfg.Cache.Redis.DB,
-				MinIdleConns: cfg.Cache.Redis.MinIdleConns,
-				PoolSize:     cfg.Cache.Redis.PoolSize,
-			},
-			ConsumerGroup: cfgSubscriber.ConsumerGroup,
-		}
-		return outboundredisstream.NewSubscriber(param, d.GetLogger())
-	})
-}
-
-// GetSubscriberKafka resolves and returns the subscriber dependency
-func (d *Dependency) GetSubscriberKafka(subscriberID string) *kafka.Subscriber {
-	return d.subscriberKafka.Resolve(func() *kafka.Subscriber {
-		cfg := d.GetConfig()
-		cfgSubscriber := cfg.Event.Kafka.Subscribers.GetByID(subscriberID)
-		if cfgSubscriber == nil {
-			d.GetLogger().Fatalf("kafka subscriber config not found for subscriber ID: %s", subscriberID)
-		}
-		param := outboundkafka.ParamSubscriber{
-			Brokers:       cfgSubscriber.Brokers,
-			ConsumerGroup: cfgSubscriber.ConsumerGroup,
-			DebugEnabled:  cfgSubscriber.DebugEnabled,
-			TraceEnabled:  cfgSubscriber.TraceEnabled,
-		}
-		return outboundkafka.NewSubscriber(param, d.GetLogger())
-	})
-}
-
-// GetIdempotency resolves and returns the idempotency dependency
-func (d *Dependency) GetIdempotency() *idempotency.Idempotency {
-	return d.idempotency.Resolve(func() *idempotency.Idempotency {
-		cfg := d.GetConfig()
-		return idempotency.NewIdempotency(idempotency.Param{
-			Sentinel:     cfg.Cache.Redis.Sentinel,
-			MasterName:   cfg.Cache.Redis.MasterName,
-			Username:     cfg.Cache.Redis.Username,
-			Password:     cfg.Cache.Redis.Password,
-			Hosts:        cfg.Cache.Redis.Hosts,
-			DB:           cfg.Cache.Redis.DB,
-			MinIdleConns: cfg.Cache.Redis.MinIdleConns,
-			PoolSize:     cfg.Cache.Redis.PoolSize,
-		}, d.GetLogger())
-	})
-}
-
-// GetDLocker resolves and returns the dlocker dependency
-func (d *Dependency) GetDLocker() *dlock.Dlock {
-	return d.dlocker.Resolve(func() *dlock.Dlock {
-		cfg := d.GetConfig()
-		param := dlock.Param{
-			Sentinel:     cfg.Cache.Redis.Sentinel,
-			MasterName:   cfg.Cache.Redis.MasterName,
-			Username:     cfg.Cache.Redis.Username,
-			Password:     cfg.Cache.Redis.Password,
-			Hosts:        cfg.Cache.Redis.Hosts,
-			DB:           cfg.Cache.Redis.DB,
-			MinIdleConns: cfg.Cache.Redis.MinIdleConns,
-			PoolSize:     cfg.Cache.Redis.PoolSize,
-		}
-		return dlock.NewDlock(param, d.GetLogger())
-	})
-}
-
-// GetMigrators resolves and returns the migrators dependency
-func (d *Dependency) GetMigrators() []migrate.Migrator {
-	return d.migrators.Resolve(func() []migrate.Migrator {
-		return []migrate.Migrator{
-			mariadb.NewMigrator(d.GetConfig(), d.GetLogger(), d.GetQweryMain()),
-		}
-	})
-}
-
-// GetServiceNote resolves and returns the service note dependency
-func (d *Dependency) GetServiceNote(repo outbound.Repository) *note.Service {
-	return d.serviceNote.Resolve(func() *note.Service {
-		return note.NewService(d.GetConfig(), d.GetLogger(), repo, d.GetRedis())
+// GetServiceExport resolves and returns the export service dependency
+func (d *Dependency) GetServiceExport(repo outbound.Repository) *export.Service {
+	return d.serviceExport.Resolve(func() *export.Service {
+		return export.NewService(d.GetConfig(), d.GetLogger(), repo)
 	})
 }
 
 // GetHTTPHandlers resolves and returns the http handlers dependency
 func (d *Dependency) GetHTTPHandlers() []http.Handler {
 	return d.httpHandlers.Resolve(func() []http.Handler {
-		repo := d.GetRepository(d.GetQweryMain())
+		repo := d.GetSecretsRepository()
 		return []http.Handler{
-			httpHandler.NewNoteHandler(d.GetConfig(), d.GetLogger(), d.GetServiceNote(repo)),
+			httpHandler.NewNamespaceHandler(d.GetConfig(), d.GetLogger(), d.GetServiceNamespace(repo)),
+			httpHandler.NewSecretFileHandler(d.GetConfig(), d.GetLogger(), d.GetServiceSecretFile(repo)),
+			httpHandler.NewSecretHandler(d.GetConfig(), d.GetLogger(), d.GetServiceSecret(repo)),
+			httpHandler.NewFileContentHandler(d.GetConfig(), d.GetLogger(), d.GetServiceFileContent(repo), d.GetServiceExport(repo)),
 		}
 	})
 }
 
 // GetHTTP resolves and returns the http dependency
 func (d *Dependency) GetHTTP() *http.HTTP {
-	return d.http.Resolve(func() *http.HTTP {
+	return d.httpRunner.Resolve(func() *http.HTTP {
 		return http.NewHTTP(d.GetConfig(), d.GetLogger(), d.GetHTTPHandlers())
-	})
-}
-
-// GetSubscriberHandlers resolves and returns the subscriber handlers dependency
-func (d *Dependency) GetSubscriberHandlers() []subscriber.Handler {
-	return d.subscriberHandlers.Resolve(func() []subscriber.Handler {
-		return []subscriber.Handler{
-			subscriberHandler.NewNoteHandler(d.GetConfig(), d.GetLogger(), d.GetSubscriberKafka("general")),
-		}
-	})
-}
-
-// GetSubscriber resolves and returns the subscriber dependency
-func (d *Dependency) GetSubscriber(closeTimeout time.Duration) *subscriber.Subscriber {
-	return d.subscriber.Resolve(func() *subscriber.Subscriber {
-		return subscriber.NewSubscriber(d.GetConfig(), d.GetLogger(), d.GetIdempotency(), d.GetSubscriberHandlers(), closeTimeout)
-	})
-}
-
-// GetMigrate resolve migrate dependency instance
-func (d *Dependency) GetMigrate(migrateType string, max int, repository string) *migrate.Migrate {
-	return d.migrate.Resolve(func() *migrate.Migrate {
-		return migrate.NewMigrate(
-			d.GetConfig(),
-			d.GetLogger(),
-			d.GetMigrators(),
-			migrate.MigrateParams{
-				MigrationType: migrateType,
-				Max:           max,
-				Repository:    repository,
-			})
-	})
-}
-
-// GetMigrateGenerate resolves and returns the migrate generate dependency
-func (d *Dependency) GetMigrateGenerate(repository string, fileName string) *migrate.Generate {
-	return d.migrateGenerate.Resolve(func() *migrate.Generate {
-		return migrate.NewGenerate(
-			d.GetConfig(),
-			d.GetLogger(),
-			d.GetMigrators(),
-			migrate.GenerateParams{
-				Repository: repository,
-				FileName:   fileName,
-			})
-	})
-}
-
-// GetWorkerGenerateID resolves and returns the worker generate id dependency
-func (d *Dependency) GetWorkerGenerateID() *worker.WorkerGenerateID {
-	return d.workerGenerateID.Resolve(func() *worker.WorkerGenerateID {
-		return worker.NewWorkerGenerateID(d.GetConfig(), d.GetLogger())
-	})
-}
-
-// GetWorkerOutboxRelay resolves and returns the worker relay outbox dependency
-func (d *Dependency) GetWorkerOutboxRelay() *worker.WorkerOutboxRelay {
-	return d.workerOutboxRelay.Resolve(func() *worker.WorkerOutboxRelay {
-		repo := d.GetRepository(d.GetQweryWorker())
-		relayOutbox := worker.NewWorkerOutboxRelay(d.GetConfig(), d.GetLogger(), repo)
-		return relayOutbox
 	})
 }

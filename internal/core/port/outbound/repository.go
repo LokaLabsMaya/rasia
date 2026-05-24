@@ -6,16 +6,17 @@ import (
 	"context"
 
 	"github.com/lokalabsmaya/rasia/internal/core/port/outbound/repositories"
-	"github.com/redhajuanda/qwery"
 )
 
 type Repository interface {
 	// DoInTransaction executes a function in a transaction
 	DoInTransaction(ctx context.Context, fn func(repo Repository) (any, error)) (any, error)
-	// PublishOutbox publishes an outbox event
-	PublishOutbox(ctx context.Context, target PublisherTarget, topic string, payload qwery.JSONMap) error
-	// RetryOutbox retries an outbox event
-	RetryOutbox(ctx context.Context) error
-	// GetNoteRepository returns the NoteRepository instance
-	GetNoteRepository() repositories.Note
+	// GetNamespaceRepository returns the NamespaceRepository instance
+	GetNamespaceRepository() repositories.Namespace
+	// GetSecretFileRepository returns the SecretFileRepository instance
+	GetSecretFileRepository() repositories.SecretFile
+	// GetSecretRepository returns the SecretRepository instance
+	GetSecretRepository() repositories.Secret
+	// GetFileContentRepository returns the FileContentRepository instance
+	GetFileContentRepository() repositories.FileContent
 }
