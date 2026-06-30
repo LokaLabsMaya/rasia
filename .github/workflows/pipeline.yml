@@ -5,54 +5,108 @@ on:
     branches: [development, main]
     tags:
       - "v*"
-  pull_request:
+
+permissions:
+  contents: read
+  packages: write
 
 jobs:
-  ci:
-    uses: lokalabsmaya/infrastructure/.github/workflows/ci-golang.yml@main
-    permissions:
-      contents: read
-      packages: write
-      actions: write
-    secrets: inherit
-    with:
-      go_version: "1.25.0"
-      dockerfile: deployments/build/Dockerfile
-      context: .
-      release_branch: development
-      cgo_enabled: true
-      build_args: |
-        appName=rasia
-        appPath=.
+  go-test:
+    name: Go Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-  cd-development:
-    needs: ci
-    if: github.ref == 'refs/heads/development'
-    uses: lokalabsmaya/infrastructure/.github/workflows/cd-golang.yml@main
-    secrets:
-      SSH_HOST: ${{ secrets.SSH_HOST }}
-      SSH_USERNAME: ${{ secrets.SSH_USERNAME }}
-      SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
-    with:
-      service_path: rasia/rasia-dev
-      compose_file: deployments/docker-compose.development.yaml
-      image_tag: development
-      environment: infra
-      use_rasia: false
-      use_tailscale: true
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.0"
+          cache: true
 
-  cd-production:
-    needs: ci
-    if: startsWith(github.ref, 'refs/tags/v')
-    uses: lokalabsmaya/infrastructure/.github/workflows/cd-golang.yml@main
-    secrets:
-      SSH_HOST: ${{ secrets.SSH_HOST }}
-      SSH_USERNAME: ${{ secrets.SSH_USERNAME }}
-      SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
-    with:
-      service_path: rasia/rasia-prod
-      compose_file: deployments/docker-compose.production.yaml
-      image_tag: ${{ github.ref_name }}
-      environment: infra
-      use_rasia: false
-      use_tailscale: true
+      - name: Install gcc
+        run: sudo apt-get update && sudo apt-get install -y gcc
+
+      - name: Run tests
+        run: CGO_ENABLED=1 go test -count=1 -race -coverprofile=coverage.out ./...
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+          if-no-files-found: error
+
+  go-vet:
+    name: Go Vet
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.0"
+          cache: true
+
+      - name: Install gcc
+        run: sudo apt-get install -y gcc
+
+      - name: go vet
+        run: CGO_ENABLED=1 go vet ./...
+
+      - name: Verify go.mod and go.sum
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
+  build-image:
+    name: Build Image
+    needs: [go-test, go-vet]
+    if: github.ref == 'refs/heads/development' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare image name
+        env:
+          REPOSITORY: ${{ github.repository }}
+        run: echo "IMAGE_NAME=$(echo "$REPOSITORY" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          logout: false
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}},enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=ref,event=branch,enable=${{ github.ref == 'refs/heads/development' }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deployments/build/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: false
+          sbom: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            appName=rasia
+            appPath=.
